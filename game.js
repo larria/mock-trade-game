@@ -342,7 +342,7 @@ function renderGame() {
     </div>
     ${devaBar(done ? (ret >= 0 ? pick(DEVA_LINES.win) : pick(DEVA_LINES.lose)) : pick(DEVA_LINES.dayEnd))}
     ${done ? renderReveal(g, ret) : ''}
-    ${renderDailyTable(g, d)}
+    ${done ? renderDailyTable(g, d) : ''}
     <div class="panel">
         <div class="panel-title">
             ${g.revealed
@@ -371,7 +371,8 @@ function renderGame() {
             <button class="big-btn hold" onclick="Game.decide('hold')">${g.shares > 0 ? '持仓装死' : '空仓观望'}</button>
         </div>
         <div class="hint">当前${g.shares > 0 ? '持仓 ' + (posValue / asset * 100).toFixed(0) + '%' : '空仓'}${g.shares > 0 && g.cash >= dayK(g, d).close * 100 ? ' + 现金 ' + fmtMoney(g.cash) : ''} · 卖出按比例减仓</div>
-    </div>`}`;
+    </div>`}
+    ${done ? '' : renderDailyTable(g, d)}`;
     renderChart(g);
 }
 
