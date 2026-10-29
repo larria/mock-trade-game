@@ -503,8 +503,8 @@ window.Game = {
             const stock = pool.splice(i, 1)[0];
             try {
                 const raw = await Util.loadDayKList(stock.fullCode);
-                const kList = raw.map(k => ({ date: new Date(k.date), open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, amount: k.amount }))
-                    .sort((a, b) => a.date - b.date);
+                const kList = Util.applyQfq(raw.map(k => ({ date: new Date(k.date), open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, amount: k.amount, prevclose: k.prevclose }))
+                    .sort((a, b) => a.date - b.date));
                 if (kList.length < HISTORY_DAYS + GAP_DAYS + HOLD_DAYS + 10) continue; // 数据不足换下一只
                 G = newGame(kList, stock);
                 view = 'game';
