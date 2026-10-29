@@ -1,0 +1,11 @@
+{
+  "name": "mock-trade-game",
+  "version": "1.0.0",
+  "description": "A股简单! - deva 的交易修行场 · 沪深300成分股盲图模拟交易游戏",
+  "scripts": {
+    "deploy": "gh-pages -d . -m \"deploy: update game\""
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
+  }
+}
