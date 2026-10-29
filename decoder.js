@@ -11,6 +11,38 @@ class Util {
         return Util.decodeBase64DayKData(orgData);
     }
 
+    // 前复权(移植自新浪个股页 K线组件机制):
+    // 新浪的加密日K数据在除权除息日的行内嵌 prevclose(除权基准价),
+    // 前端用因子 = prevclose / 前一交易日close, 对除权日之前的所有K线价格累乘,
+    // 得到以最新价格为基准的前复权序列, 消除除权跳变。
+    static applyQfq(kList) {
+        // 1. 找出每个除权日及其缩放因子
+        const factorByIdx = new Map();
+        for (let i = kList.length - 1; i >= 1; i--) {
+            const k = kList[i];
+            if (k.prevclose !== undefined && kList[i - 1].close > 0) {
+                const f = k.prevclose / kList[i - 1].close;
+                if (isFinite(f) && f > 0 && Math.abs(f - 1) > 1e-6) factorByIdx.set(i, f);
+            }
+        }
+        // 2. 从最晚往最早走, cum = 当前日期之后所有除权因子之积, 乘到该日价格上
+        //    (因子作用于除权日"之前"的历史, 除权日本身按除权后价格, 不乘)
+        const out = kList.map(k => ({ ...k, prevclose: undefined }));
+        let cum = 1;
+        for (let i = out.length - 1; i >= 0; i--) {
+            const k = out[i];
+            if (cum !== 1) {
+                k.open = +(k.open * cum).toFixed(3);
+                k.high = +(k.high * cum).toFixed(3);
+                k.low = +(k.low * cum).toFixed(3);
+                k.close = +(k.close * cum).toFixed(3);
+            }
+            const f = factorByIdx.get(i);
+            if (f !== undefined) cum *= f;
+        }
+        return out;
+    }
+
     static loadScript(url, removeAfterLoad = true) {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
