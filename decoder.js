@@ -46,14 +46,24 @@ class Util {
     static loadScript(url, removeAfterLoad = true) {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
+            const cleanup = () => {
+                clearTimeout(timeout);
+                script.onload = null;
+                script.onerror = null;
+                if (removeAfterLoad && script.parentNode) script.parentNode.removeChild(script);
+            };
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error('行情请求超时'));
+            }, 8000);
             script.src = url;
             script.onload = () => {
+                cleanup();
                 resolve(url);
-                if (removeAfterLoad) document.head.removeChild(script);
             };
             script.onerror = () => {
+                cleanup();
                 reject(new Error('脚本加载失败: ' + url));
-                if (removeAfterLoad && script.parentNode) document.head.removeChild(script);
             };
             document.head.appendChild(script);
         });
