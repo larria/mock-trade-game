@@ -1,7 +1,7 @@
 {
   "name": "mock-trade-game",
   "version": "1.0.0",
-  "description": "A股简单 · 面向所有玩家的沪深300盲图模拟交易游戏",
+  "description": "A股简单 · 多市场历史行情盲图模拟交易游戏",
   "scripts": {
     "deploy": "gh-pages -d dist -m \"deploy: trading game v1.0.0\"",
     "dev": "node server.js",
@@ -12,7 +12,8 @@
     "predev": "npm run build:pwa",
     "prestart": "npm run build:pwa",
     "pretest": "npm run build:pwa",
-    "predeploy": "npm run build"
+    "predeploy": "npm run build",
+    "refresh:universe": "python3 scripts/refresh-universe.py"
   },
   "devDependencies": {
     "gh-pages": "^6.3.0"

@@ -10,7 +10,9 @@
 | --- | --- |
 | index.html | 页面元数据、PWA manifest、图标和 defer 脚本加载顺序 |
 | styles.css | 公共工作台、表单、桌面与手机布局、主题、版本入口 |
-| hs300_list.js | 固定股票列表，全局 HS300_LIST |
+| stock-universe.js | 完整市场快照、元信息与去重选池，StockUniverse 全局及 Node 导出 |
+| scripts/refresh-universe.py | 官方指数和新浪完整板块名单更新与校验 |
+| scripts/requirements-universe.txt | 名单刷新所需的 Python 依赖 |
 | decoder.js | 新浪脚本加载、解码、前复权，全局 Util |
 | engine.js | 纯计算和存档契约，浏览器 TradingEngine、Node module.exports |
 | market-chart.js | 已知数据裁剪、周期聚合、指标预热、ECharts 联动，全局 MarketChart |
@@ -25,6 +27,7 @@
 | server.js | 仅监听 127.0.0.1 的开发静态服务，默认端口 5173 |
 | tests/engine.test.js | 周期、交易、指标、存档与未来数据隔离测试 |
 | tests/pwa.test.js | 发布指纹、缓存原子性、离线、作用域与安装资源测试 |
+| tests/universe-indicators.test.js | 四池完整性、去重、500 日与底栏读数测试 |
 | docs/PRODUCT_SPEC.md | 当前产品契约 |
 | docs/DEVELOPMENT_SPEC.md | 当前开发契约 |
 | dist/ | 只包含发布运行资源的输出，不纳入源码提交 |
@@ -39,7 +42,8 @@ settings(input) 从默认值补全、校验并归一化，不修改调用方对�
 
 | 字段 | 默认值 | 契约 |
 | --- | --- | --- |
-| days | 30 | 整数 7–200 |
+| days | 30 | 整数 7–500 |
+| markets | [hs300,csi500,star,chinext] | 至少一项，去重并过滤非法范围；UI 拒绝空选 |
 | initialCash | 1000000 | 整数 10000–100000000 |
 | history | 200 | 引擎允许整数 120–2000，UI 提供固定预设 |
 | commission、slippage | 0 | 百分比数值 0–1，使用时除以 100 |
@@ -51,6 +55,9 @@ settings(input) 从默认值补全、校验并归一化，不修改调用方对�
 | volumePeriods | [5,10] | 2–250 不重复整数，最多 2 条 |
 | macdFast/Slow/Signal | 12/26/9 | 2–100 / 3–200 / 2–100，fast < slow |
 | kdjPeriod/K/D | 9/3/3 | 2–100 / 1–50 / 1–50 |
+| macdReadout、kdjReadout | true | 分别控制对应副图底栏 |
+| indicatorPrecision | 3 | 小数位整数 2–6 |
+| indicatorDirections | true | 比较原始数值的升降箭头 |
 | costLine、tradeMarkers | true | 主图辅助显示 |
 | theme | light | light/dark |
 | colorScheme | red-up | red-up/green-up |
@@ -61,7 +68,15 @@ settings(input) 从默认值补全、校验并归一化，不修改调用方对�
 
 ## 3. 数据契约
 
-### 3.1 行情条目
+### 3.1 市场快照
+
+StockUniverse 导出 `{asOf,markets,stocks,pool,describe}`。markets 条目包含 id/name/count/asOf/source；stock 包含 code/name/fullCode/markets。id 为 hs300/csi500/star/chinext。pool(selected) 返回属于任一选中范围的股票，股票数组已按 fullCode 去重排序，多范围会员不增加权重。describe(selected) 返回公共范围名称。
+
+刷新使用中证指数 `000300cons.xls`、`000905cons.xls` 官方成分表，要求精确 300/500 个唯一代码。新浪 `Market_Center.getHQNodeStockCount` 和 `getHQNodeData` 的 kcb/cyb 节点用于全部板块名单，80 条一页，最多 4 页并发；分页总数、唯一数和刷新后节点总数必须一致。科创板支持 sh688/sh689，创业板支持 sz30xxxx，不限于 300/301 前缀。
+
+脚本完成所有四池校验后，才通过临时文件原子替换 stock-universe.js。失败不写部分数据。来源、日期和数量包含在快照中，只保存最新名单，不积累历史。当前四池数量 300/500/618/1411，去重并集 2633，快照日期 2026-11-05。静态快照随 PWA 发布缓存，运行时无需额外名单网络请求，不回溯训练日期的历史成员。
+
+### 3.2 行情条目
 
 行情按日期升序存放：
 
@@ -72,7 +87,7 @@ settings(input) 从默认值补全、校验并归一化，不修改调用方对�
 
 价格必须是有限正数，date 必须是有效日期。数据在调用 createGame 前经 Util.applyQfq() 进行前复权。applyQfq 使用日线 prevclose 与前一收盘比值形成因子，对除权日之前的价格累乘；成交量不进行价格复权。当前复权基准是加载到的完整行情最新价格。
 
-### 3.2 对局 G
+### 3.3 对局 G
 
 ```js
 {
@@ -87,9 +102,9 @@ settings(input) 从默认值补全、校验并归一化，不修改调用方对�
 
 索引含义：histStart 为可见历史起点，gameStart 为第一个训练日索引，endIdx 为最后训练日的包含索引，day 为已完成决策数，取 0…config.days。day=0 时当前价格来自 gameStart−1。id 用于已完成记录去重，不作为身份认证。
 
-createGame 以 config.history 为最小训练起点，以 kList.length−30−config.days 为最大训练起点，均匀抽样。config 是开局设置快照；进行中不能用全局设置替代它计算交易费用和终点。
+createGame 以 config.history 为最小训练起点，以 kList.length−30−config.days 为最大训练起点，均匀抽样。config 是含市场范围的开局设置快照；进行中不能用全局设置替代它计算交易费用和终点。
 
-### 3.3 持久化
+### 3.4 持久化
 
 公共命名空间：trade_settings_v2、trade_game_current_v2、trade_game_records_v1。一次性更新草稿使用 sessionStorage 的 trade_order_draft_v1。客户端还支持既有存档键读取，属于兼容输入，公共界面和新写入均不含个人署名。
 
@@ -159,15 +174,21 @@ KDJ y 轴不强制夹在 0–100，保留 J 的可能越界值；20/80 仅是视
 
 第 0 个 grid 是价格主图，candlestick 和 MA 共享 xAxis/yAxis=0。启用的成交量、MACD、KDJ 按顺序获得独立 grid 和 axis。所有 grid 由 axisPointer.link 和 dataZoom xAxisIndex 数组联动。
 
-图表高度由主图 285px、副图每个 90px、间隙与滑块构成。ResizeObserver 处理容器变化，DOM 替换前 dispose。图表模式切换保留决策表单；周期改变重置缩放，副图开关保留周期和视窗。最新追踪窗口随已揭示数据推进；查看历史时不强行切到最新。
+图表高度由主图 285px、副图每个 90px、间隙、底栏与滑块构成。MACD/KDJ 开启读数时增加底栏空间；容器小于 520px 时采用两行，ResizeObserver 跨越此边界时重排。底栏位于各副图 grid 下方，末副图先留时间刻度空间，再放底栏，不能叠在缩放条上。DOM 替换前 dispose。周期切换保留决策表单并重置缩放，副图开关保留视窗。追踪最新窗口随数据推进，查看历史时不强行跳到最新。
 
 成本线来自 g.costBasis/g.shares。B/S 标记通过成交日索引查找所在聚合 K 线。图表颜色跟随全局 theme/colorScheme。
+
+### 5.4 副图底部读数
+
+model 的 macd/kdj 对象保留可见数组及第一根可见值之前的 prior 值，支持可见窗口边界上的相邻周期比较。indicatorReadout(model,index,settings,sub) 返回 label/color/value/previous/formatted/direction/arrow，direction 为 up/down/flat/unknown。先检查 null 和有限数值，不能把 null 当零；比较原始值后按 indicatorPrecision 格式化，无前值不显示箭头。indicatorDirections 只控制箭头显示。
+
+updateReadout 在 updateAxisPointer 和鼠标移出时更新 OHLC、MA、MACD 底栏和 KDJ 底栏。底栏使用独立定位 DOM 放在副图下，不改变曲线或计算；tooltip 使用同一格式化与比较结果。MACD 显示快/慢/信号参数与 DIF/DEA/MACD，KDJ 显示 RSV/K/D 平滑参数与 K/D/J。支持独立读数开关、统一 2–6 位精度和箭头开关。
 
 ## 6. 页面状态与交互
 
 主要状态为 G、S、records、view、orderType、size、note、loading、fetchToken。view 为 workspace/records/guide。设置使用原生 dialog；表单草稿保存前不修改 S。
 
-start() 逐次尝试最多 8 个随机标的，fetchToken 用于取消后忽略晚到结果；每个脚本请求在 8 秒超时后移除并清理监听。加载中的取消是本地中止流程，不制造虚假训练记录。
+start() 先用 U.pool(config.markets) 获取去重池，再逐次尝试最多 8 个随机标的。fetchToken 用于取消后忽略晚到结果；每个脚本请求在 8 秒超时后移除并清理监听。取消是本地中止流程，不制造虚假训练记录。历史不足的股票不能截短配置的 500 日训练，只能换下一只。
 
 每次 render() 清理旧图表实例再渲染当前页面；图表周期与副图切换使用 refreshChart() 局部刷新，避免丢失交易备注。快捷键检查 modifier、isComposing、repeat、输入区、弹窗和当前 view，避免输入文字触发交易。
 
@@ -223,9 +244,20 @@ npm run deploy       # 构建后发布 dist 至 gh-pages
 
 发布前必做：语法检查、npm test、git diff --check、npm run build、检查生成版本一致、检查运行资源白名单、桌面/手机版本入口、真实 browser 的 worker 注册与更新。
 
-自动测试覆盖 7/30/200 日结束、双向手续费、滑点、单位取整、非法指令、周/月聚合、SMA/EMA/MACD/KDJ、污染未来数据后的模型不变、存档恢复、兼容存档、回撤、可复现 build、内容指纹变化、子路径缓存、安装失败保留旧缓存、跨作用域清理、显式激活协议与 PNG 尺寸。
+自动测试覆盖四池完整性与来源、范围去重、底栏数值/箭头/精度/空值、7/30/200/500 日结束、双向手续费、滑点、单位取整、非法指令、周/月聚合、SMA/EMA/MACD/KDJ、污染未来数据后的模型不变、500 日存档恢复、兼容存档、回撤、可复现 build、内容指纹变化、子路径缓存、安装失败保留旧缓存、跨作用域清理、显式激活协议与 PNG 尺寸。
 
-浏览器验收覆盖公共文案、真实行情开局、买卖/观望/结算、刷新恢复、无横向溢出、安装提示、版本检查、等待新 worker、点击更新后的页面 build 切换，以及离线使用既有对局。线上验证以实际公开 HTML、version.js、sw.js、manifest 和资源返回为准，Git push 成功不能替代 Pages 可访问性确认。
+浏览器验收覆盖公共文案、四池多选和 500 日上限、MACD/KDJ 底栏位置和光标联动、真实行情开局、买卖/观望/结算、刷新恢复、无横向溢出、安装提示、版本检查、等待新 worker、点击更新后的页面 build 切换，以及离线使用既有对局。线上验证以实际公开 HTML、version.js、sw.js、manifest 和资源返回为准，Git push 成功不能替代 Pages 可访问性确认。
+
+### 8.1 标的名单维护
+
+```sh
+python3 -m pip install -r scripts/requirements-universe.txt
+npm run refresh:universe
+npm test
+npm run build
+```
+
+刷新来源文件不提交到仓库，stock-universe.js 是唯一运行快照。更新后同步两份规格中的当前数量和日期，再重新发布。刷新失败保留最后的完整名单。游戏设置展示实际去重数量，不硬编码总股票数。
 
 ## 9. 规格维护规则
 

@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 function buildPWA(directory = root, output = null) {
     const version = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8')).version;
     if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version)) throw new Error('Invalid package version');
-    const assets = ['index.html', 'styles.css', 'vendor/echarts.min.js', 'hs300_list.js', 'decoder.js', 'engine.js', 'market-chart.js', 'game.js', 'pwa.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
+    const assets = ['index.html', 'styles.css', 'vendor/echarts.min.js', 'stock-universe.js', 'decoder.js', 'engine.js', 'market-chart.js', 'game.js', 'pwa.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
     const template = fs.readFileSync(path.join(directory, 'scripts/sw-template.js'), 'utf8');
     const hash = crypto.createHash('sha256').update(version).update(template);
     assets.forEach(file => { hash.update(file); hash.update(fs.readFileSync(path.join(directory, file))); });

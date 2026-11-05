@@ -8,8 +8,8 @@ function data(n = 2600) {
     return list;
 }
 const near = (a, b, tolerance = 1e-8) => assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`);
-test('7, 30 and 200-day games finish exactly once at their configured end', () => {
-    for (const days of [7, 30, 200]) {
+test('7, 30, 200 and 500-day games finish exactly once at their configured end', () => {
+    for (const days of [7, 30, 200, 500]) {
         const g = E.createGame(data(), { name: 'Test', fullCode: 'sh000001' }, { days }, () => .5);
         assert.equal(g.endIdx - g.gameStart + 1, days);
         for (let i = 0; i < days; i++) { assert.equal(g.revealed, false); E.advance(g, 'hold'); }
@@ -71,15 +71,15 @@ test('chart model ignores future values in day, week and month modes', () => {
         assert.ok(original.labels.every(label => !/\d{4}-\d{2}/.test(label)));
     }
 });
-test('200-day game save restores dates, progress and frozen fee settings', () => {
-    const g = E.createGame(data(), { name: 'Test', fullCode: 'sh000001' }, { days: 200, history: 500, commission: .03 }, () => .7);
+test('500-day game save restores dates, progress and frozen fee settings', () => {
+    const g = E.createGame(data(), { name: 'Test', fullCode: 'sh000001' }, { days: 500, history: 500, commission: .03 }, () => .7);
     E.advance(g, 'buy', .5, '突破后试仓');
     const restored = E.hydrate(JSON.parse(JSON.stringify(E.serialize(g))));
-    assert.equal(restored.config.days, 200); assert.equal(restored.config.commission, .03);
+    assert.equal(restored.config.days, 500); assert.equal(restored.config.commission, .03);
     near(E.asset(restored), E.asset(g)); assert.equal(restored.day, 1); assert.equal(restored.actions[0].note, '突破后试仓');
     assert.equal(E.dateString(restored.kList[restored.gameStart].date), E.dateString(g.kList[g.gameStart].date));
-    for (let i = 1; i < 200; i++) E.advance(restored, 'hold');
-    assert.equal(restored.revealed, true); assert.equal(E.record(restored).days, 200);
+    for (let i = 1; i < 500; i++) E.advance(restored, 'hold');
+    assert.equal(restored.revealed, true); assert.equal(E.record(restored).days, 500);
 });
 test('legacy 30-day save migrates without losing shares or progress', () => {
     const bars = data(230), legacy = { stock: { name: 'Test', fullCode: 'sh000001' }, histStart: 400, gameStart: 600, endIdx: 629, day: 5, cash: 500000, shares: 10000, costBasis: 500000, initCash: 1000000, actions: [], dailyRows: [], revealed: false, kSlice: bars.map(k => ({ d: k.date.getTime(), o: k.open, h: k.high, l: k.low, c: k.close, v: k.volume, a: k.amount })) };
