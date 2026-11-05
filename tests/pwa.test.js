@@ -53,3 +53,8 @@ test('manifest is installable under root or a GitHub Pages project path', () => 
     assert.ok(m.icons.some(i => i.sizes === '192x192' && i.purpose === 'any')); assert.ok(m.icons.some(i => i.sizes === '512x512' && i.purpose === 'maskable'));
     for (const icon of m.icons) { const png = fs.readFileSync(path.join(root, icon.src)); const [width, height] = icon.sizes.split('x').map(Number); assert.equal(png.readUInt32BE(16), width); assert.equal(png.readUInt32BE(20), height); }
 });
+test('install metadata includes the standards-based web app capability', () => {
+    const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    assert.match(html, /<meta name="mobile-web-app-capable" content="yes">/);
+    assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes">/);
+});
