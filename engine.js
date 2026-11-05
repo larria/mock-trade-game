@@ -1,16 +1,18 @@
 /* Pure trading and indicator calculations. Browser + Node, no future data access. */
 (function (root) {
 'use strict';
-const DEFAULTS = Object.freeze({ days: 30, initialCash: 1000000, history: 200, commission: 0, slippage: 0, lotSize: 1, period: 'day', ma: true, maPeriods: [5, 10, 20, 60], volume: true, volumePeriods: [5, 10], macd: true, macdFast: 12, macdSlow: 26, macdSignal: 9, kdj: false, kdjPeriod: 9, kdjK: 3, kdjD: 3, costLine: true, tradeMarkers: true, colorScheme: 'red-up', theme: 'light', confirmOrders: true, shortcuts: true, coach: true, defaultSize: 0.25 });
+const DEFAULTS = Object.freeze({ days: 30, markets: ['hs300', 'csi500', 'star', 'chinext'], initialCash: 1000000, history: 200, commission: 0, slippage: 0, lotSize: 1, period: 'day', ma: true, maPeriods: [5, 10, 20, 60], volume: true, volumePeriods: [5, 10], macd: true, macdFast: 12, macdSlow: 26, macdSignal: 9, macdReadout: true, kdj: false, kdjPeriod: 9, kdjK: 3, kdjD: 3, kdjReadout: true, indicatorPrecision: 3, indicatorDirections: true, costLine: true, tradeMarkers: true, colorScheme: 'red-up', theme: 'light', confirmOrders: true, shortcuts: true, coach: true, defaultSize: 0.25 });
 const clamp = (v, min, max, fallback) => Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : fallback;
 function settings(input = {}) {
     const s = { ...DEFAULTS, ...input };
-    for (const [key, min, max] of [['days', 7, 200], ['initialCash', 10000, 100000000], ['history', 120, 2000], ['macdFast', 2, 100], ['macdSlow', 3, 200], ['macdSignal', 2, 100], ['kdjPeriod', 2, 100], ['kdjK', 1, 50], ['kdjD', 1, 50]]) s[key] = Math.round(clamp(s[key], min, max, DEFAULTS[key]));
+    for (const [key, min, max] of [['days', 7, 500], ['initialCash', 10000, 100000000], ['history', 120, 2000], ['macdFast', 2, 100], ['macdSlow', 3, 200], ['macdSignal', 2, 100], ['kdjPeriod', 2, 100], ['kdjK', 1, 50], ['kdjD', 1, 50], ['indicatorPrecision', 2, 6]]) s[key] = Math.round(clamp(s[key], min, max, DEFAULTS[key]));
+    s.markets = [...new Set((Array.isArray(s.markets) ? s.markets : DEFAULTS.markets).filter(id => DEFAULTS.markets.includes(id)))];
+    if (!s.markets.length) s.markets = [...DEFAULTS.markets];
     if (s.macdFast >= s.macdSlow) { s.macdFast = 12; s.macdSlow = 26; }
     for (const key of ['commission', 'slippage']) s[key] = clamp(s[key], 0, 1, 0);
     s.defaultSize = clamp(s.defaultSize, 0.01, 1, 0.25);
     s.lotSize = Number(s.lotSize) === 100 ? 100 : 1;
-    for (const key of ['ma', 'volume', 'macd', 'kdj', 'costLine', 'tradeMarkers', 'confirmOrders', 'shortcuts', 'coach']) s[key] = typeof s[key] === 'boolean' ? s[key] : DEFAULTS[key];
+    for (const key of ['ma', 'volume', 'macd', 'kdj', 'macdReadout', 'kdjReadout', 'indicatorDirections', 'costLine', 'tradeMarkers', 'confirmOrders', 'shortcuts', 'coach']) s[key] = typeof s[key] === 'boolean' ? s[key] : DEFAULTS[key];
     for (const [key, fallback] of [['maPeriods', DEFAULTS.maPeriods], ['volumePeriods', DEFAULTS.volumePeriods]]) {
         const periods = Array.isArray(s[key]) ? s[key].map(Number) : [];
         s[key] = [...new Set(periods.filter(p => Number.isInteger(p) && p >= 2 && p <= 250))].slice(0, key === 'maPeriods' ? 6 : 2);
