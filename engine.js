@@ -1,7 +1,7 @@
 /* Pure trading and indicator calculations. Browser + Node, no future data access. */
 (function (root) {
 'use strict';
-const DEFAULTS = Object.freeze({ days: 30, markets: ['hs300', 'csi500', 'star', 'chinext'], initialCash: 1000000, history: 200, commission: 0, slippage: 0, lotSize: 1, period: 'day', ma: true, maPeriods: [5, 10, 20, 60], volume: true, volumePeriods: [5, 10], macd: true, macdFast: 12, macdSlow: 26, macdSignal: 9, macdReadout: true, kdj: false, kdjPeriod: 9, kdjK: 3, kdjD: 3, kdjReadout: true, indicatorPrecision: 3, indicatorDirections: true, costLine: true, tradeMarkers: true, colorScheme: 'red-up', theme: 'light', confirmOrders: true, shortcuts: true, coach: true, defaultSize: 0.25 });
+const DEFAULTS = Object.freeze({ days: 30, markets: ['hs300', 'csi500', 'star', 'chinext'], initialCash: 1000000, history: 200, commission: 0, slippage: 0, lotSize: 1, period: 'day', ma: true, maPeriods: [5, 10, 20, 60], volume: true, volumePeriods: [5, 10], macd: true, macdFast: 12, macdSlow: 26, macdSignal: 9, macdReadout: true, kdj: false, kdjPeriod: 9, kdjK: 3, kdjD: 3, kdjReadout: true, indicatorPrecision: 3, indicatorDirections: true, costLine: true, tradeMarkers: true, colorScheme: 'red-up', theme: 'light', tradeMode: 'quick', confirmOrders: true, shortcuts: true, coach: true, defaultSize: 0.25 });
 const clamp = (v, min, max, fallback) => Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : fallback;
 function settings(input = {}) {
     const s = { ...DEFAULTS, ...input };
@@ -20,6 +20,7 @@ function settings(input = {}) {
     }
     s.period = ['day', 'week', 'month'].includes(s.period) ? s.period : 'day';
     s.theme = s.theme === 'dark' ? 'dark' : 'light';
+    s.tradeMode = s.tradeMode === 'pro' ? 'pro' : 'quick';
     s.colorScheme = s.colorScheme === 'green-up' ? 'green-up' : 'red-up';
     return s;
 }
@@ -82,12 +83,17 @@ function createGame(kList, stock, input, random = Math.random) {
 }
 const currentBar = g => g.kList[g.gameStart + g.day - 1];
 const asset = g => g.cash + g.shares * currentBar(g).close;
+function buyQuantity(g, slippedPrice, size) {
+    const { commission, lotSize } = g.config;
+    return Math.floor((g.cash * size / (slippedPrice * (1 + commission / 100))) / lotSize) * lotSize;
+}
+const canBuyAll = g => buyQuantity(g, currentBar(g).close * (1 + g.config.slippage / 100), 1) > 0;
 function drawdown(g) {
     let peak = g.initCash, max = 0;
     for (const row of g.dailyRows) { peak = Math.max(peak, row.asset); max = Math.max(max, (peak - row.asset) / peak); }
     return max;
 }
-function advance(g, action, size = 0, note = '') {
+function advance(g, action, size = 0, note = '', { holdIfUnaffordable = false } = {}) {
     if (g.revealed || g.day >= g.config.days) throw new Error('本局已结束');
     if (!['buy', 'sell', 'hold'].includes(action)) throw new Error('无效的交易操作');
     if (action !== 'hold' && !(Number.isFinite(size) && size > 0 && size <= 1)) throw new Error('仓位比例应在 1%–100% 之间');
@@ -96,7 +102,8 @@ function advance(g, action, size = 0, note = '') {
     let quantity = 0, fee = 0, price = bar.close;
     if (action === 'buy') {
         price *= 1 + slip;
-        quantity = Math.floor((g.cash * size / (price * (1 + rate))) / g.config.lotSize) * g.config.lotSize;
+        quantity = buyQuantity(g, price, size);
+        if (quantity <= 0 && holdIfUnaffordable) return advance(g, 'hold', 0, '全买未成交，资金不足一个交易单位。');
         if (quantity <= 0) throw new Error('该比例资金不足，无法买入。请提高比例或选择观望');
         fee = quantity * price * rate;
         const cost = quantity * price + fee;
@@ -137,7 +144,7 @@ function record(g) {
     const ret = asset(g) / g.initCash - 1, base = g.kList[g.gameStart - 1].close, benchmark = currentBar(g).close / base - 1;
     return { id: g.id, time: new Date().toLocaleString('zh-CN'), name: g.stock.name, code: g.stock.fullCode, range: `${dateString(g.kList[g.gameStart].date)} ~ ${dateString(currentBar(g).date)}`, days: g.config.days, asset: asset(g), return: ret, benchmark, beatBenchmark: ret >= benchmark, trades: g.actions.filter(a => a.action !== 'hold').length, drawdown: drawdown(g), fees: g.totalFees };
 }
-const api = { DEFAULTS, settings, dateString, aggregate, sma, ema, macd, kdj, createGame, currentBar, asset, drawdown, advance, serialize, hydrate, migrate, record };
+const api = { DEFAULTS, settings, dateString, aggregate, sma, ema, macd, kdj, createGame, currentBar, asset, canBuyAll, drawdown, advance, serialize, hydrate, migrate, record };
 root.TradingEngine = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(globalThis);

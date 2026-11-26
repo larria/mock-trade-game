@@ -27,3 +27,67 @@
 .app-version[data-state=downloading] .icon{animation:spin 1s linear infinite}
 .pwa-update-dialog ul{margin:0 0 20px;padding-inline-start:24px;text-align:start;color:var(--soft)}
 .pwa-update-dialog li+li{margin-top:8px}
+
+.quick-trade-active{
+    --quick-trade-height:88px;
+    --mobile-nav-height:58px;
+}
+.quick-trade-active .content{padding-bottom:calc(30px + var(--quick-trade-height) + env(safe-area-inset-bottom))}
+.quick-panel .quick-rules{font-size:12px;color:var(--soft);line-height:1.7}
+.quick-panel .position-details{margin-top:14px;padding-top:14px}
+.quick-panel .position-details>div{font-size:12px;color:var(--soft)}
+.quick-trade[hidden]{display:none}
+.quick-trade{
+    position:fixed;
+    inset:auto 0 0 var(--sidebar);
+    z-index:29;
+    padding:8px max(12px,env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+    background:var(--surface);
+    border-top:1px solid var(--line);
+}
+.quick-trade-inner{max-width:520px;margin:0 auto}
+.quick-trade-status{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    height:22px;
+    margin-bottom:3px;
+    white-space:nowrap;
+    color:var(--soft);
+    font-size:12px;
+}
+#quick-trade-day{flex:none;color:var(--ink);font-weight:700}
+#quick-trade-feedback{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.quick-trade-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.quick-trade-actions button{
+    height:45px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--surface-2);
+    color:var(--green);
+    font-size:15px;
+    font-weight:700;
+    touch-action:manipulation;
+}
+.quick-trade-actions button:focus-visible{outline-offset:2px}
+.quick-trade-actions button:disabled{opacity:1;color:var(--muted);background:var(--surface)}
+.quick-trade-actions .quick-hold{border-color:var(--green);background:var(--green);color:var(--surface)}
+@media(hover:hover){
+    .quick-trade-actions button:enabled:hover{background:var(--tint);border-color:var(--green)}
+    .quick-trade-actions .quick-hold:enabled:hover{background:var(--green-hover)}
+}
+.quick-trade-actions button:enabled:active{border-color:var(--green);background:var(--tint)}
+.quick-trade-actions .quick-hold:enabled:active{background:var(--green-hover)}
+.quick-trade-active #toasts{bottom:calc(12px + var(--quick-trade-height) + env(safe-area-inset-bottom))}
+.quick-trade-active .chart-card:fullscreen,
+.quick-trade-active .chart-card.fullscreen-fallback{
+    padding-bottom:calc(12px + var(--quick-trade-height) + env(safe-area-inset-bottom));
+}
+.chart-card>.quick-trade{inset-inline:0}
+@media(max-width:560px){
+    .quick-trade-active .mobile-nav{height:calc(var(--mobile-nav-height) + env(safe-area-inset-bottom))}
+    .quick-trade-active .content{padding-bottom:calc(22px + var(--mobile-nav-height) + var(--quick-trade-height) + env(safe-area-inset-bottom))}
+    .quick-trade{bottom:calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));padding-bottom:9px}
+    .chart-card>.quick-trade{bottom:0;padding-bottom:calc(9px + env(safe-area-inset-bottom))}
+    .quick-trade-active #toasts{bottom:calc(12px + var(--quick-trade-height) + var(--mobile-nav-height) + env(safe-area-inset-bottom))}
+}

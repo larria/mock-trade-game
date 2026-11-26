@@ -25,6 +25,16 @@
 </head>
 <body>
   <div id="app"></div>
+  <section id="quick-trade" class="quick-trade" aria-label="极简交易" hidden>
+    <div class="quick-trade-inner">
+      <div class="quick-trade-status"><span id="quick-trade-day" class="num"></span><span id="quick-trade-feedback" role="status"></span></div>
+      <div class="quick-trade-actions">
+        <button type="button" data-action="quick-trade" data-order="buy">全买</button>
+        <button type="button" data-action="quick-trade" data-order="sell">全卖</button>
+        <button type="button" data-action="quick-trade" data-order="hold" class="quick-hold">持币</button>
+      </div>
+    </div>
+  </section>
   <dialog class="confirm-dialog pwa-update-dialog" id="pwa-update-dialog" aria-labelledby="pwa-update-title">
     <h2 id="pwa-update-title"></h2>
     <p>确认更新后会保存当前对局和交易草稿，再重新打开应用。</p>

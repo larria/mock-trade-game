@@ -38,6 +38,35 @@ test('invalid orders do not consume a day or change account state', () => {
     for (const [action, size] of [['sell', 1], ['buy', 0], ['buy', 2], ['buy', NaN], ['other', 1]]) assert.throws(() => E.advance(g, action, size));
     assert.equal(JSON.stringify(g), before);
 });
+test('quick is the default and full trades honor fees, slippage and lot sizes', () => {
+    assert.equal(E.settings().tradeMode, 'quick');
+    assert.equal(E.settings({ tradeMode: 'unknown' }).tradeMode, 'quick');
+    assert.equal(E.settings({ tradeMode: 'pro' }).tradeMode, 'pro');
+    const bars = data().map(bar => ({ ...bar, close: 10 }));
+    const g = E.createGame(bars, {}, { initialCash: 10000, lotSize: 100, commission: 0.1, slippage: 1 }, () => 0);
+    assert.equal(E.canBuyAll(g), true);
+    const buy = E.advance(g, 'buy', 1);
+    assert.equal(buy.quantity, 900);
+    assert.equal(E.canBuyAll(g), false);
+    const sell = E.advance(g, 'sell', 1);
+    assert.equal(sell.quantity, 900);
+    assert.equal(g.shares, 0);
+    assert.equal(g.day, 2);
+});
+test('a quick buy that becomes unaffordable at the next close advances with no fill', () => {
+    const g = E.createGame(data(), {}, { initialCash: 10000, lotSize: 100 }, () => 0);
+    g.kList[g.gameStart].close = 105;
+    assert.equal(E.canBuyAll(g), true);
+    assert.throws(() => E.advance(g, 'buy', 1), /资金不足/);
+    assert.equal(g.day, 0);
+    const action = E.advance(g, 'buy', 1, '', { holdIfUnaffordable: true });
+    assert.equal(action.action, 'hold');
+    assert.match(action.note, /全买未成交/);
+    assert.equal(g.cash, 10000);
+    assert.equal(g.shares, 0);
+    assert.equal(g.day, 1);
+    assert.equal(E.canBuyAll(g), false);
+});
 test('weekly aggregation follows calendar weeks across a year boundary', () => {
     const input = [bar('2020-12-31', 10, 11, 12, 9, 100), bar('2021-01-01', 11, 12, 13, 10, 200), bar('2021-01-04', 12, 9, 14, 8, 300)];
     const result = E.aggregate(input, 'week');

@@ -22,6 +22,9 @@ const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp
 const money = n => Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
 const pct = n => `${n > 0 ? '+' : ''}${(n * 100).toFixed(2)}%`;
 const sign = n => n > 0 ? 'up' : n < 0 ? 'down' : '';
+const tradeKeys = { b: 'buy', s: 'sell', h: 'hold' };
+const quickBar = $('quick-trade');
+const quickButtons = Object.fromEntries([...quickBar.querySelectorAll('button')].map(button => [button.dataset.order, button]));
 let storageWarned = false;
 function read(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
 function write(key, value) { try { value === null ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(value)); return true; } catch { if (!storageWarned) { storageWarned = true; toast('本地存储不可用或空间不足，请导出战绩备份；刷新可能丢失进度'); } return false; } }
@@ -59,36 +62,97 @@ const previewData = demoBars();
 function preview() { return { stock: { name: '演示行情', fullCode: 'DEMO' }, kList: previewData, config: S, histStart: Math.max(0, 760 - S.history), gameStart: 760, endIdx: 759 + S.days, day: 0, cash: S.initialCash, shares: 0, costBasis: 0, initCash: S.initialCash, actions: [], dailyRows: [], revealed: false }; }
 function shell(body) {
     const active = G && !G.revealed, nav = (name, label, i) => `<button data-action="nav" data-view="${name}" class="${view === name ? 'active' : ''}" ${view === name ? 'aria-current="page"' : ''}>${icon(i)}<span>${label}</span>${name === 'records' && records.length ? `<span class="nav-count">${records.length}</span>` : ''}</button>`;
-    $('app').innerHTML = `<aside class="sidebar"><a class="brand" href="#" data-action="home" aria-label="A股简单首页"><div class="brand-symbol">${icon('trend')}</div><div><div class="brand-title">A股简单</div><div class="brand-sub">THE TRADING PRACTICE</div></div></a><div class="side-label">YOUR WORKSPACE</div><nav class="side-nav" aria-label="主导航">${nav('workspace', '交易工作台', 'grid')}${nav('records', '复盘战绩', 'chart')}<button data-action="settings">${icon('settings')}<span>偏好设置</span></button>${nav('guide', '实战指南', 'book')}</nav><div class="side-challenge"><div class="eyebrow">DAILY PRACTICE</div><h3>${active ? `${G.config.days} 日交易挑战` : '把判断，练成直觉。'}</h3><p>${active ? `已完成 ${G.day} 个交易日<br>市场正在等待你的下一步。` : '真实市场，独立判断。<br>建立属于自己的交易系统。'}</p><div class="mini-bars" aria-hidden="true">${[10, 17, 14, 25, 19, 29, 25, 35, 31, 40].map(h => `<i style="height:${h}px"></i>`).join('')}</div></div><div class="side-spacer"></div><div class="market-status"><span class="live-dot"></span>多市场 · 历史行情</div><div class="side-user"><div class="avatar">${icon('user')}</div><div><b>交易练习生</b><small>保持独立 · 持续精进</small></div>${icon('leaf')}</div>${AppPWA.markup('side')}</aside><div class="workspace"><header class="topbar"><div class="breadcrumb">${icon('grid')}<span>工作空间</span><span>/</span><b>${{ workspace: '交易工作台', records: '复盘战绩', guide: '实战指南' }[view]}</b></div><div class="mobile-brand"><div class="brand-symbol">${icon('trend')}</div>A股简单</div><div class="top-actions">${AppPWA.markup('mobile')}<span class="session-badge"><span class="live-dot"></span>${active ? '对局进行中 · 自动保存' : '专注每一次决策'}</span><span class="top-divider"></span><button class="icon-btn" data-action="guide" aria-label="实战指南" title="实战指南">${icon('book')}</button><button class="icon-btn" data-action="settings" aria-label="设置" title="偏好设置">${icon('settings')}</button></div></header><main class="content">${body}<footer class="footer"><span>A股简单 · 交易修行场　/　模拟训练，磨炼交易纪律</span><span>LESS NOISE. BETTER DECISIONS.</span></footer></main></div><nav class="mobile-nav" aria-label="手机导航">${nav('workspace', '工作台', 'grid')}${nav('records', '战绩', 'chart')}<button data-action="settings">${icon('settings')}<span>设置</span></button>${nav('guide', '指南', 'book')}</nav>`;
+    $('app').innerHTML = `<aside class="sidebar"><a class="brand" href="#" data-action="home" aria-label="A股简单首页"><div class="brand-symbol">${icon('trend')}</div><div><div class="brand-title">A股简单</div><div class="brand-sub">THE TRADING PRACTICE</div></div></a><div class="side-label">YOUR WORKSPACE</div><nav class="side-nav" aria-label="主导航">${nav('workspace', '交易工作台', 'grid')}${nav('records', '复盘战绩', 'chart')}<button data-action="settings">${icon('settings')}<span>偏好设置</span></button>${nav('guide', '实战指南', 'book')}</nav><div class="side-challenge"><div class="eyebrow">DAILY PRACTICE</div><h3>${active ? `${G.config.days} 日交易挑战` : '把判断，练成直觉。'}</h3><p>${active ? `已完成 <span id="side-day">${G.day}</span> 个交易日<br>市场正在等待你的下一步。` : '真实市场，独立判断。<br>建立属于自己的交易系统。'}</p><div class="mini-bars" aria-hidden="true">${[10, 17, 14, 25, 19, 29, 25, 35, 31, 40].map(h => `<i style="height:${h}px"></i>`).join('')}</div></div><div class="side-spacer"></div><div class="market-status"><span class="live-dot"></span>多市场 · 历史行情</div><div class="side-user"><div class="avatar">${icon('user')}</div><div><b>交易练习生</b><small>保持独立 · 持续精进</small></div>${icon('leaf')}</div>${AppPWA.markup('side')}</aside><div class="workspace"><header class="topbar"><div class="breadcrumb">${icon('grid')}<span>工作空间</span><span>/</span><b>${{ workspace: '交易工作台', records: '复盘战绩', guide: '实战指南' }[view]}</b></div><div class="mobile-brand"><div class="brand-symbol">${icon('trend')}</div>A股简单</div><div class="top-actions">${AppPWA.markup('mobile')}<span class="session-badge"><span class="live-dot"></span>${active ? '对局进行中 · 自动保存' : '专注每一次决策'}</span><span class="top-divider"></span><button class="icon-btn" data-action="guide" aria-label="实战指南" title="实战指南">${icon('book')}</button><button class="icon-btn" data-action="settings" aria-label="设置" title="偏好设置">${icon('settings')}</button></div></header><main class="content">${body}<footer class="footer"><span>A股简单 · 交易修行场　/　模拟训练，磨炼交易纪律</span><span>LESS NOISE. BETTER DECISIONS.</span></footer></main></div><nav class="mobile-nav" aria-label="手机导航">${nav('workspace', '工作台', 'grid')}${nav('records', '战绩', 'chart')}<button data-action="settings">${icon('settings')}<span>设置</span></button>${nav('guide', '指南', 'book')}</nav>`;
     AppPWA.sync();
 }
 function heading(title, subtitle, actions = '', eyebrow = 'MARKET SIMULATOR / 01') { return `<div class="page-heading"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${subtitle}</p></div><div class="heading-actions">${actions}</div></div>`; }
 function stat(label, value, description, i, valueClass = '', spark = false) { return `<div class="stat-card"><div class="stat-label">${label}${icon(i)}</div><div class="stat-value num ${valueClass}">${value}</div><div class="stat-note">${description}</div>${spark ? '<svg class="stat-spark" viewBox="0 0 70 30" aria-hidden="true"><path d="m0 25 9-5 8 3 8-11 7 5 9-9 8 4 12-10"/></svg>' : ''}</div>`; }
 function render() {
+    quickBar.hidden = true;
+    document.body.classList.remove('quick-trade-active');
+    placeQuickTrade();
     preferences(); MarketChart.dispose(); if (equity) { equity.dispose(); equity = null; }
     if (view === 'records') return renderRecords();
     if (view === 'guide') return renderGuide();
     if (loading) return renderLoading();
     renderWorkspace();
 }
-function renderWorkspace() {
-    const g = G || preview(), current = E.currentBar(g), asset = E.asset(g), ret = asset / g.initCash - 1, position = g.shares * current.close / asset;
-    const done = !!G?.revealed;
-    const prior = g.kList[Math.max(0, g.gameStart + g.day - 2)], change = current.close / prior.close - 1;
-    const h = heading(done ? '每一笔交易，都值得复盘。' : '交易修行场', done ? '回看进场理由、仓位与离场时机，让每一次实战成为下一次的经验。' : '屏蔽名字与日期，让趋势、仓位和纪律成为你的答案。', `${G && !done && !G.actions.length ? `<button class="btn" data-action="abandon">${icon('reset')}<span>重新抽题</span></button>` : ''}<button class="btn" data-action="settings">${icon('sliders')}<span>调整设置</span></button>${done ? `<button class="btn primary" data-action="start">${icon('play')}<span>新一局</span></button>` : ''}`);
-    shell(`${h}${done ? reveal(g) : ''}<div class="stats">${stat('账户总资产', `<span class="currency">¥</span>${money(asset)}`, G ? `初始资金 ¥${money(g.initCash)}` : '准备好你的第一笔交易', 'wallet', '', true)}${stat('累计收益', pct(ret), G ? `${ret >= 0 ? '盈利' : '亏损'} ¥${money(Math.abs(asset - g.initCash))}` : '让每次决策都有依据', 'trend', sign(ret))}${stat('可用资金', `<span class="currency">¥</span>${money(g.cash)}`, `${(g.cash / asset * 100).toFixed(1)}% 现金占比`, 'cash')}${stat('当前仓位', `${(position * 100).toFixed(1)}<span style="font-size:16px;margin-left:3px">%</span>`, g.shares ? `${money(g.shares)} 股 · 市值 ¥${money(g.shares * current.close)}` : '空仓 · 耐心等待机会', 'pie')}</div><div class="workspace-grid"><div class="analysis-column">${chartCard(g, change)}${journal(g)}</div><aside class="decision-column">${G ? (done ? resultPanel(g) : orderPanel(g)) : launchPanel()}${S.coach ? `<div class="coach-card"><div class="coach-heading">${icon('bulb')}交易手记</div><p>${coachLines[g.day % coachLines.length]}</p><small>YOUR TRADING NOTE</small></div>` : ''}${!G ? `<div class="practice-intro">${icon('leaf')}<h3>不猜股票，<br>只交易趋势。</h3><p>沪深300、中证500、科创板、创业板。<br>每次推进一天，练习自己的判断。</p><div class="deco" aria-hidden="true"></div></div>` : ''}</aside></div>`);
-    MarketChart.render(g, S);
-    if (G && !done) bindOrder();
+function accountStats(g) {
+    const current = E.currentBar(g), asset = E.asset(g), ret = asset / g.initCash - 1;
+    const position = g.shares * current.close / asset;
+    return `${stat('账户总资产', `<span class="currency">¥</span>${money(asset)}`, G ? `初始资金 ¥${money(g.initCash)}` : '准备好你的第一笔交易', 'wallet', '', true)}${stat('累计收益', pct(ret), G ? `${ret >= 0 ? '盈利' : '亏损'} ¥${money(Math.abs(asset - g.initCash))}` : '让每次决策都有依据', 'trend', sign(ret))}${stat('可用资金', `<span class="currency">¥</span>${money(g.cash)}`, `${(g.cash / asset * 100).toFixed(1)}% 现金占比`, 'cash')}${stat('当前仓位', `${(position * 100).toFixed(1)}<span style="font-size:16px;margin-left:3px">%</span>`, g.shares ? `${money(g.shares)} 股 · 市值 ¥${money(g.shares * current.close)}` : '空仓 · 耐心等待机会', 'pie')}`;
 }
-function chartCard(g, change) {
-    return `<section class="card chart-card" id="chart-card" aria-label="行情分析"><div class="chart-heading"><div><h2 class="chart-title"><span class="stock-symbol">${icon(G?.revealed ? 'chart' : 'lock')}</span>${G?.revealed ? escape(g.stock.name) : G ? '神秘标的' : '行情分析'}<span class="tag ${G?.revealed ? 'green' : ''}">${icon(G?.revealed ? 'check' : 'lock')}${G?.revealed ? escape(g.stock.fullCode.toUpperCase()) : G ? '盲图模式' : '演示行情'}</span></h2><div class="eyebrow">${G ? 'MARKET REPLAY / TECHNICAL ANALYSIS' : 'DEMO / EXPLORE YOUR WORKSPACE'}</div></div><div class="stock-quote"><div class="price num">${E.currentBar(g).close.toFixed(2)}</div><div class="change num ${sign(change)}">${pct(change)} <span class="muted">${S.period === 'day' ? '最新日涨跌' : '日涨跌'}</span></div></div></div><div class="chart-toolbar"><div class="segmented" role="group" aria-label="K线周期">${[['day', '日 K'], ['week', '周 K'], ['month', '月 K']].map(([p, label]) => `<button data-action="period" data-period="${p}" class="${S.period === p ? 'active' : ''}" aria-pressed="${S.period === p}">${label}</button>`).join('')}</div><div class="indicator-controls" role="group" aria-label="技术指标">${[['ma', 'MA'], ['volume', 'VOL'], ['macd', 'MACD'], ['kdj', 'KDJ']].map(([key, label]) => `<button class="indicator-btn ${S[key] ? 'active' : ''}" data-action="indicator" data-indicator="${key}" aria-pressed="${S[key]}" title="${key === 'ma' ? '主图均线' : key === 'volume' ? '成交量副图' : `${label} 副图`}"><i class="indicator-dot"></i>${label}</button>`).join('')}<span class="toolbar-divider"></span><button class="icon-btn" data-action="chart-reset" aria-label="重置图表缩放" title="重置缩放">${icon('reset')}</button><button class="icon-btn" data-action="chart-settings" aria-label="技术指标设置" title="技术指标设置">${icon('sliders')}</button><button class="icon-btn" data-action="fullscreen" aria-label="全屏行情图" title="全屏行情图">${icon('expand')}</button></div></div><div id="ohlc" class="ohlc" aria-live="off"></div><div id="ma-legend" class="ma-legend"></div><div id="chart"></div><div class="chart-foot"><span>${icon('info')}${!G ? '演示数据 · 开始挑战后使用真实历史行情' : S.period !== 'day' && !g.revealed ? '末根为形成中的周期 K 线 · 仅包含已揭示交易日' : '滚轮缩放 · 拖动平移 · 十字光标联动'}</span><span id="bar-count"></span></div></section>`;
+function quote(g) {
+    const close = E.currentBar(g).close, change = close / g.kList[Math.max(0, g.gameStart + g.day - 2)].close - 1;
+    return `<div class="price num">${close.toFixed(2)}</div><div class="change num ${sign(change)}">${pct(change)} <span class="muted">${S.period === 'day' ? '最新日涨跌' : '日涨跌'}</span></div>`;
+}
+function renderWorkspace() {
+    const g = G || preview(), done = !!G?.revealed;
+    const quick = !!G && !done && S.tradeMode === 'quick';
+    const h = heading(done ? '每一笔交易，都值得复盘。' : '交易修行场', done ? '回看进场理由、仓位与离场时机，让每一次实战成为下一次的经验。' : '屏蔽名字与日期，让趋势、仓位和纪律成为你的答案。', `${G && !done && !G.actions.length ? `<button class="btn" data-action="abandon">${icon('reset')}<span>重新抽题</span></button>` : ''}<button class="btn" data-action="settings">${icon('sliders')}<span>调整设置</span></button>${done ? `<button class="btn primary" data-action="start">${icon('play')}<span>新一局</span></button>` : ''}`);
+    shell(`${h}${done ? reveal(g) : ''}<div class="stats" id="account-stats">${accountStats(g)}</div><div class="workspace-grid"><div class="analysis-column">${chartCard(g)}${journal(g)}</div><aside class="decision-column">${G ? (done ? resultPanel(g) : quick ? quickPanel(g) : orderPanel(g)) : launchPanel()}${S.coach ? `<div class="coach-card"><div class="coach-heading">${icon('bulb')}交易手记</div><p id="coach-line">${coachLines[g.day % coachLines.length]}</p><small>YOUR TRADING NOTE</small></div>` : ''}${!G ? `<div class="practice-intro">${icon('leaf')}<h3>不猜股票，<br>只交易趋势。</h3><p>沪深300、中证500、科创板、创业板。<br>每次推进一天，练习自己的判断。</p><div class="deco" aria-hidden="true"></div></div>` : ''}</aside></div>`);
+    MarketChart.render(g, S);
+    if (quick) syncQuickTrade();
+    else if (G && !done) bindOrder();
+}
+function chartCard(g) {
+    return `<section class="card chart-card" id="chart-card" aria-label="行情分析"><div class="chart-heading"><div><h2 class="chart-title"><span class="stock-symbol">${icon(G?.revealed ? 'chart' : 'lock')}</span>${G?.revealed ? escape(g.stock.name) : G ? '神秘标的' : '行情分析'}<span class="tag ${G?.revealed ? 'green' : ''}">${icon(G?.revealed ? 'check' : 'lock')}${G?.revealed ? escape(g.stock.fullCode.toUpperCase()) : G ? '盲图模式' : '演示行情'}</span></h2><div class="eyebrow">${G ? 'MARKET REPLAY / TECHNICAL ANALYSIS' : 'DEMO / EXPLORE YOUR WORKSPACE'}</div></div><div class="stock-quote">${quote(g)}</div></div><div class="chart-toolbar"><div class="segmented" role="group" aria-label="K线周期">${[['day', '日 K'], ['week', '周 K'], ['month', '月 K']].map(([p, label]) => `<button data-action="period" data-period="${p}" class="${S.period === p ? 'active' : ''}" aria-pressed="${S.period === p}">${label}</button>`).join('')}</div><div class="indicator-controls" role="group" aria-label="技术指标">${[['ma', 'MA'], ['volume', 'VOL'], ['macd', 'MACD'], ['kdj', 'KDJ']].map(([key, label]) => `<button class="indicator-btn ${S[key] ? 'active' : ''}" data-action="indicator" data-indicator="${key}" aria-pressed="${S[key]}" title="${key === 'ma' ? '主图均线' : key === 'volume' ? '成交量副图' : `${label} 副图`}"><i class="indicator-dot"></i>${label}</button>`).join('')}<span class="toolbar-divider"></span><button class="icon-btn" data-action="chart-reset" aria-label="重置图表缩放" title="重置缩放">${icon('reset')}</button><button class="icon-btn" data-action="chart-settings" aria-label="技术指标设置" title="技术指标设置">${icon('sliders')}</button><button class="icon-btn" data-action="fullscreen" aria-label="全屏行情图" title="全屏行情图">${icon('expand')}</button></div></div><div id="ohlc" class="ohlc" aria-live="off"></div><div id="ma-legend" class="ma-legend"></div><div id="chart"></div><div class="chart-foot"><span>${icon('info')}${!G ? '演示数据 · 开始挑战后使用真实历史行情' : S.period !== 'day' && !g.revealed ? '末根为形成中的周期 K 线 · 仅包含已揭示交易日' : '滚轮缩放 · 拖动平移 · 十字光标联动'}</span><span id="bar-count"></span></div></section>`;
 }
 function launchPanel() {
     return `<section class="card order-panel"><div class="panel-kicker">YOUR NEXT CHALLENGE ${icon('target')}</div><h2>市场出题，你来作答。</h2><p class="order-sub">一次完整的交易训练，从这里开始。</p><div class="launch-big num">${S.days}<small>个交易日</small></div><div class="launch-info"><div><span>初始资金</span><b class="num">¥ ${money(S.initialCash)}</b></div><div><span>历史窗口</span><b>${S.history} 根日 K</b></div><div><span>双向佣金</span><b>${S.commission}%</b></div><div><span>股票池</span><b>${marketCount(S).toLocaleString('zh-CN')} 只 <span class="tag green">去重随机</span></b></div></div><div class="market-summary">${marketLabels(S)}<small>标的快照 ${U.asOf}</small></div><div class="mini-rule">${icon('lock')}隐藏股票与日期，专注价格走势。</div><div class="mini-rule">${icon('calendar')}每次决策推进一个交易日，结束后揭晓。</div><button class="submit-order" data-action="start">开始盲图挑战 ${icon('arrow')}</button><div class="order-rule">按下一交易日收盘价成交 · 本地自动保存</div><button class="btn" style="width:100%;margin-top:15px" data-action="settings">${icon('sliders')}自定义训练</button></section>`;
 }
+function positionDetails(g) {
+    return `<div class="position-details"><div><span>持仓成本</span><b class="num">${g.shares ? '¥ ' + (g.costBasis / g.shares).toFixed(3) : '—'}</b></div><div><span>持仓股数</span><b class="num">${money(g.shares)} 股</b></div><div><span>累计手续费</span><b class="num">¥ ${money(g.totalFees || 0)}</b></div></div>`;
+}
+function quickPanel(g) {
+    return `<section class="card order-panel quick-panel"><h2>极简模式</h2><p class="order-sub">每次操作推进一个交易日。</p><p class="quick-rules">下一交易日收盘成交 · 佣金 ${g.config.commission}%<br>${g.config.slippage ? `滑点 ${g.config.slippage}% · ` : ''}${g.config.lotSize === 100 ? '100 股一手' : '按整股交易'}</p><div id="quick-position">${positionDetails(g)}</div></section>`;
+}
+function placeQuickTrade() {
+    const chart = $('chart-card');
+    const fullscreen = chart && (document.fullscreenElement === chart || chart.classList.contains('fullscreen-fallback'));
+    const parent = fullscreen && !quickBar.hidden ? chart : document.body;
+    if (quickBar.parentElement !== parent) parent.append(quickBar);
+}
+function syncQuickTrade(feedback = '下一交易日收盘成交') {
+    quickBar.hidden = false;
+    document.body.classList.add('quick-trade-active');
+    placeQuickTrade();
+    $('quick-trade-day').textContent = `第 ${G.day + 1} / ${G.config.days} 日`;
+    $('quick-trade-feedback').textContent = feedback;
+    quickButtons.hold.textContent = G.shares ? '持仓' : '持币';
+    quickButtons.buy.disabled = !E.canBuyAll(G);
+    quickButtons.buy.title = quickButtons.buy.disabled ? '按已知收盘价，可用资金不足一个交易单位' : '用可用资金买入';
+    quickButtons.sell.disabled = !G.shares;
+    quickButtons.sell.title = quickButtons.sell.disabled ? '当前没有持仓' : '卖出全部持仓';
+    for (const [key, action] of Object.entries(tradeKeys)) {
+        if (S.shortcuts) quickButtons[action].setAttribute('aria-keyshortcuts', key.toUpperCase());
+        else quickButtons[action].removeAttribute('aria-keyshortcuts');
+    }
+}
+let quickChartFrame;
+function refreshQuickWorkspace(result, feedback) {
+    $('account-stats').innerHTML = accountStats(G);
+    document.querySelector('.stock-quote').innerHTML = quote(G);
+    $('quick-position').innerHTML = positionDetails(G);
+    $('side-day').textContent = G.day;
+    if ($('coach-line')) $('coach-line').textContent = coachLines[G.day % coachLines.length];
+    document.querySelector('[data-action=abandon]')?.remove();
+    const rows = $('journal-rows');
+    if (rows) {
+        rows.insertAdjacentHTML('afterbegin', journalRow(G, G.dailyRows.at(-1), result));
+        $('journal-count').textContent = `${G.day} 条记录`;
+    } else {
+        document.querySelector('.journal').outerHTML = journal(G);
+    }
+    syncQuickTrade(feedback);
+    if (quickChartFrame === undefined) quickChartFrame = requestAnimationFrame(() => {
+        quickChartFrame = undefined;
+        if (!quickBar.hidden) MarketChart.render(G, S);
+    });
+}
 function orderPanel(g) {
     if (orderType === 'sell' && !g.shares) orderType = 'buy';
-    return `<section class="card order-panel"><div class="panel-kicker">MAKE YOUR DECISION ${icon('edit')}</div><h2>下一步，由你决定。</h2><p class="order-sub">第 <b class="num">${g.day + 1}</b> / ${g.config.days} 个交易日</p><div class="progress-label"><span>训练进度</span><span class="num">${Math.round(g.day / g.config.days * 100)}%</span></div><div class="progress-track"><i style="width:${g.day / g.config.days * 100}%"></i></div><div class="order-tabs" role="group" aria-label="交易方向">${[['buy', '买入'], ['sell', '卖出'], ['hold', '观望']].map(([type, label]) => `<button data-action="order" data-order="${type}" class="${orderType === type ? 'active' : ''}" aria-pressed="${orderType === type}" ${type === 'sell' && !g.shares ? 'disabled title="当前没有持仓"' : ''}>${label}</button>`).join('')}</div>${orderType === 'hold' ? `<div class="hold-state">${icon('pause')}<h3>${g.shares ? '持仓，等待市场验证。' : '空仓，也是一个决定。'}</h3><p>不进行交易，揭开下一根日 K。<br>保持耐心，让机会来到你这边。</p></div>` : `<div class="field-heading"><span>${orderType === 'buy' ? '使用可用资金' : '卖出现有持仓'}</span><small>自定义比例</small></div><div class="size-options">${[[.25, '1/4'], [1 / 3, '1/3'], [.5, '1/2'], [1, orderType === 'buy' ? '全仓' : '清仓']].map(([v, label]) => `<button data-action="size" data-size="${v}" class="${Math.abs(size - v) < .0001 ? 'active' : ''}">${label}</button>`).join('')}</div><div class="size-field"><input id="order-size" aria-label="仓位百分比" type="number" min="1" max="100" step="0.01" value="${+(size * 100).toFixed(2)}"><span>%</span></div><input id="size-range" type="range" aria-label="调整仓位比例" min="1" max="100" step="1" value="${Math.round(size * 100)}"><div class="range-labels"><span>1%</span><span>50%</span><span>100%</span></div><div class="estimate"><span>参考${orderType === 'buy' ? '投入' : '卖出'}</span><b id="estimate-value" class="num"></b></div><div class="field-help">按已知价格估算，实际数量以明日成交为准。</div>`}<div class="order-note"><textarea id="trade-note" aria-label="交易理由" maxlength="160" placeholder="写下这次决策的理由（选填）…">${escape(note)}</textarea></div><button class="submit-order" data-action="submit-order">${orderType === 'hold' ? '保持观望' : orderType === 'buy' ? '确认买入' : '确认卖出'}，推进一天 ${icon('arrow')}</button><div class="order-rule">下一交易日收盘成交 · 佣金 ${g.config.commission}%<br>${g.config.slippage ? `滑点 ${g.config.slippage}% · ` : ''}${g.config.lotSize === 100 ? '100 股一手' : '按整股交易'}</div><div class="position-details"><div><span>持仓成本</span><b class="num">${g.shares ? '¥ ' + (g.costBasis / g.shares).toFixed(3) : '—'}</b></div><div><span>持仓股数</span><b class="num">${money(g.shares)} 股</b></div><div><span>累计手续费</span><b class="num">¥ ${money(g.totalFees || 0)}</b></div></div></section>`;
+    return `<section class="card order-panel"><div class="panel-kicker">MAKE YOUR DECISION ${icon('edit')}</div><h2>下一步，由你决定。</h2><p class="order-sub">第 <b class="num">${g.day + 1}</b> / ${g.config.days} 个交易日</p><div class="progress-label"><span>训练进度</span><span class="num">${Math.round(g.day / g.config.days * 100)}%</span></div><div class="progress-track"><i style="width:${g.day / g.config.days * 100}%"></i></div><div class="order-tabs" role="group" aria-label="交易方向">${[['buy', '买入'], ['sell', '卖出'], ['hold', '观望']].map(([type, label]) => `<button data-action="order" data-order="${type}" class="${orderType === type ? 'active' : ''}" aria-pressed="${orderType === type}" ${type === 'sell' && !g.shares ? 'disabled title="当前没有持仓"' : ''}>${label}</button>`).join('')}</div>${orderType === 'hold' ? `<div class="hold-state">${icon('pause')}<h3>${g.shares ? '持仓，等待市场验证。' : '空仓，也是一个决定。'}</h3><p>不进行交易，揭开下一根日 K。<br>保持耐心，让机会来到你这边。</p></div>` : `<div class="field-heading"><span>${orderType === 'buy' ? '使用可用资金' : '卖出现有持仓'}</span><small>自定义比例</small></div><div class="size-options">${[[.25, '1/4'], [1 / 3, '1/3'], [.5, '1/2'], [1, orderType === 'buy' ? '全仓' : '清仓']].map(([v, label]) => `<button data-action="size" data-size="${v}" class="${Math.abs(size - v) < .0001 ? 'active' : ''}">${label}</button>`).join('')}</div><div class="size-field"><input id="order-size" aria-label="仓位百分比" type="number" min="1" max="100" step="0.01" value="${+(size * 100).toFixed(2)}"><span>%</span></div><input id="size-range" type="range" aria-label="调整仓位比例" min="1" max="100" step="1" value="${Math.round(size * 100)}"><div class="range-labels"><span>1%</span><span>50%</span><span>100%</span></div><div class="estimate"><span>参考${orderType === 'buy' ? '投入' : '卖出'}</span><b id="estimate-value" class="num"></b></div><div class="field-help">按已知价格估算，实际数量以明日成交为准。</div>`}<div class="order-note"><textarea id="trade-note" aria-label="交易理由" maxlength="160" placeholder="写下这次决策的理由（选填）…">${escape(note)}</textarea></div><button class="submit-order" data-action="submit-order">${orderType === 'hold' ? '保持观望' : orderType === 'buy' ? '确认买入' : '确认卖出'}，推进一天 ${icon('arrow')}</button><div class="order-rule">下一交易日收盘成交 · 佣金 ${g.config.commission}%<br>${g.config.slippage ? `滑点 ${g.config.slippage}% · ` : ''}${g.config.lotSize === 100 ? '100 股一手' : '按整股交易'}</div>${positionDetails(g)}</section>`;
 }
 function bindOrder() {
     $('trade-note').addEventListener('input', e => { note = e.target.value; });
@@ -107,11 +171,11 @@ function bindOrder() {
     updateEstimate();
 }
 function updateEstimate() { const el = $('estimate-value'); if (el && G) el.textContent = orderType === 'buy' ? `¥ ${money(G.cash * size)}` : `${money(size === 1 ? G.shares : Math.floor(G.shares * size / G.config.lotSize) * G.config.lotSize)} 股`; }
+function journalRow(g, r, action = g.actions.find(a => a.day === r.day)) {
+    return `<tr><td>${g.revealed ? E.dateString(r.date) : `D+${r.day}`}</td><td class="num">${r.close.toFixed(2)}</td><td class="num ${sign(r.chg)}">${pct(r.chg)}</td><td><span class="${action?.action === 'buy' ? 'up' : action?.action === 'sell' ? 'down' : ''}">${escape(r.act)}</span>${action?.note ? `<div class="journal-note">${escape(action.note)}</div>` : ''}</td><td class="num">${money(action?.fee || 0)}</td><td class="num">${money(r.asset)}</td></tr>`;
+}
 function journal(g) {
-    return `<section class="card journal"><div class="card-head"><h2>${icon('book')}交易日志 <span class="tag">${g.dailyRows.length} 条记录</span></h2><span class="muted" style="font-size:9px">${g.revealed ? '完整交易区间' : '记录行动，也记录理由'}</span></div>${!g.dailyRows.length ? `<div class="empty-state"><div class="empty-icon">${icon('edit')}</div><h3>你的第一笔决策，等待落笔。</h3><p>买入、卖出或观望之后，交易记录会出现在这里。</p></div>` : `<div class="table-wrap"><table><thead><tr><th>交易日</th><th>收盘价</th><th>涨跌幅</th><th>操作 / 理由</th><th>手续费</th><th>总资产</th></tr></thead><tbody>${[...g.dailyRows].reverse().map(r => {
-        const action = g.actions.find(a => a.day === r.day);
-        return `<tr><td>${g.revealed ? E.dateString(r.date) : `D+${r.day}`}</td><td class="num">${r.close.toFixed(2)}</td><td class="num ${sign(r.chg)}">${pct(r.chg)}</td><td><span class="${action?.action === 'buy' ? 'up' : action?.action === 'sell' ? 'down' : ''}">${escape(r.act)}</span>${action?.note ? `<div class="journal-note">${escape(action.note)}</div>` : ''}</td><td class="num">${money(action?.fee || 0)}</td><td class="num">${money(r.asset)}</td></tr>`;
-    }).join('')}</tbody></table></div>`}</section>`;
+    return `<section class="card journal"><div class="card-head"><h2>${icon('book')}交易日志 <span class="tag" id="journal-count">${g.dailyRows.length} 条记录</span></h2><span class="muted" style="font-size:9px">${g.revealed ? '完整交易区间' : '记录行动，也记录理由'}</span></div>${!g.dailyRows.length ? `<div class="empty-state"><div class="empty-icon">${icon('edit')}</div><h3>你的第一笔决策，等待落笔。</h3><p>买入、卖出或观望之后，交易记录会出现在这里。</p></div>` : `<div class="table-wrap"><table><thead><tr><th>交易日</th><th>收盘价</th><th>涨跌幅</th><th>操作 / 理由</th><th>手续费</th><th>总资产</th></tr></thead><tbody id="journal-rows">${[...g.dailyRows].reverse().map(r => journalRow(g, r)).join('')}</tbody></table></div>`}</section>`;
 }
 function reveal(g) {
     const r = E.record(g);
@@ -133,11 +197,11 @@ function renderRecords() {
 function renderGuide() {
     shell(`${heading('给你的判断，一套清晰的规则。', '了解训练机制与分析工具，之后把注意力留给市场。', '<button class="btn primary" data-action="nav" data-view="workspace">回到工作台 ' + icon('arrow') + '</button>', 'THE FIELD GUIDE / 03')}<div class="guide-grid">${[
         ['01 / THE CHALLENGE', '真实行情，盲图训练', '系统从沪深300、中证500、全部科创板和创业板股票中按所选范围去重抽取标的和历史区间，隐藏名称与日期。每局可设 7–500 个交易日，默认 30 日。前复权 K 线显示历史窗口，每次决策只揭示下一个交易日。完成后揭晓真实标的与日期，并保存战绩。'],
-        ['02 / EXECUTION', '决策先于行情', '买卖指令以<strong>下一交易日收盘价</strong>成交。参考投入使用当前已知信息估算，实际股数随成交价格变化。每个交易日只能执行一次买入、卖出或观望；买入比例相对于可用现金，卖出比例相对于现有持仓。'],
+        ['02 / EXECUTION', '决策先于行情', '默认极简模式，点击底部的全买、全卖或持仓／持币，直接推进一个交易日。在设置的「训练规则」可切换专业操盘手模式，使用自定义仓位和交易理由。两种模式的买卖均以<strong>下一交易日收盘价</strong>为成交基准。'],
         ['03 / TECHNICAL ANALYSIS', '主图均线，副图联动', '主图可叠加最多 6 条自定义均线。成交量、MACD、KDJ 各占一个副图，十字光标与缩放联动。周 K 按自然周、月 K 按自然月聚合，末根形成中的 K 线仅使用已知交易日。切换周期后，指标参数以该周期 K 线根数计算。'],
         ['04 / TRADING COSTS', '把交易成本计入决策', '设置中可以调整双向佣金费率和成交滑点，默认均为 0。佣金按成交金额计算，买入时计入持仓成本，卖出时从回款扣除。滑点在买入时提高、卖出时降低成交价格。选择按整股或 100 股一手交易；清仓可卖出全部剩余持仓。'],
         ['05 / YOUR WORKSPACE', '设置与记录，随时可用', '图表设置即时应用；周期、资金、历史窗口和费率等训练设置在新一局生效，当前对局遵循开局时的规则。进度自动保存在当前浏览器，刷新后恢复。开局尚未决策时可以重新抽题，开始决策后需完成本局。战绩可导出 CSV 备份。'],
-        ['06 / KEYBOARD', '专注图表，快捷操作', '启用快捷键后：<kbd>B</kbd> 选择买入，<kbd>S</kbd> 选择卖出，<kbd>H</kbd> 选择观望，<kbd>Enter</kbd> 提交当前决策。<kbd>1</kbd> 日 K、<kbd>2</kbd> 周 K、<kbd>3</kbd> 月 K；<kbd>,</kbd> 打开设置。输入文字或打开弹窗时暂停交易快捷键。']
+        ['06 / KEYBOARD', '专注图表，快捷操作', '极简模式下 <kbd>B</kbd> 全买、<kbd>S</kbd> 全卖、<kbd>H</kbd> 持仓／持币。专业模式用 B、S、H 选择方向，按 <kbd>Enter</kbd> 提交。<kbd>1</kbd> 日 K、<kbd>2</kbd> 周 K、<kbd>3</kbd> 月 K；<kbd>,</kbd> 打开设置。输入文字或打开弹窗时暂停交易快捷键。']
     ].map(([n, title, body]) => `<section class="card guide-card"><div class="guide-number">${n}</div><h2>${title}</h2><p>${body}</p></section>`).join('')}</div>`);
 }
 function renderLoading() { shell(`${heading('抽取下一道市场考题。', '加载真实历史行情，准备盲图训练。')}<section class="card loading-panel"><div class="loader"></div><h2>正在连接历史行情…</h2><p id="loading-status">从所选 ${marketCount(S).toLocaleString('zh-CN')} 只标的中随机抽题，准备 ${S.days} 个交易日。</p><button class="btn" data-action="cancel-load">取消加载</button></section>`); }
@@ -157,7 +221,10 @@ async function start() {
             const bars = Util.applyQfq(raw.map(k => ({ ...k, date: new Date(k.date) })).filter(k => Number.isFinite(k.date.getTime()) && [k.open, k.close, k.high, k.low].every(v => Number.isFinite(v) && v > 0)).sort((a, b) => a.date - b.date));
             const next = E.createGame(bars, stock, config);
             if (token !== fetchToken) return;
-            G = next; orderType = 'buy'; size = S.defaultSize; note = ''; loading = false; MarketChart.reset(); save(); render(); toast('考题已就绪。先看趋势，再做决定。'); return;
+            G = next; orderType = 'buy'; size = S.defaultSize; note = ''; loading = false; MarketChart.reset(); save(); render();
+            if (S.tradeMode === 'quick' && matchMedia('(max-width: 780px), (max-height: 600px)').matches) $('chart-card').scrollIntoView({ block: 'start' });
+            toast('考题已就绪。先看趋势，再做决定。');
+            return;
         } catch (e) { error = e.message; }
     }
     if (token !== fetchToken) return;
@@ -177,22 +244,38 @@ function submit() {
     if (!G || G.revealed || loading) return;
     if (orderType !== 'hold') { const input = $('order-size'); if (!input.reportValidity() || !input.value) return; size = Number(input.value) / 100; }
     const action = orderType, ratio = size, rationale = note, gameId = G.id;
-    const perform = () => {
-        if (!G || G.id !== gameId || G.revealed) return;
-        try {
-            const result = E.advance(G, action, ratio, rationale); note = '';
-            if (G.revealed) {
-                const r = E.record(G);
-                if (!records.some(existing => existing.id === r.id)) records.push(r);
-                // Keep completed save if record persistence fails, so a refresh can recover it.
-                if (write(KEYS.records, records)) { write(KEYS.game, null); write(KEYS.legacy, null); } else write(KEYS.game, E.serialize(G));
-            } else save();
-            render();
-            toast(G.revealed ? `训练完成 · 最终收益 ${pct(E.asset(G) / G.initCash - 1)}` : result.action === 'hold' ? `第 ${G.day} 日已揭示 · ${pct(G.dailyRows.at(-1).chg)}` : `${result.action === 'buy' ? '买入' : '卖出'} ${money(result.quantity)} 股 · 成交 ¥${result.price.toFixed(3)}${result.fee ? ` · 佣金 ¥${result.fee.toFixed(2)}` : ''}`);
-        } catch (e) { toast(e.message); }
-    };
+    const perform = () => { if (G?.id === gameId) performTrade(action, ratio, rationale); };
     if (!S.confirmOrders || action === 'hold') return perform();
     confirmDialog({ title: `${action === 'buy' ? '买入' : '卖出'}并推进到第 ${G.day + 1} 日？`, body: `使用${action === 'buy' ? '可用现金' : '现有持仓'}的 <b>${(ratio * 100).toFixed(2)}%</b>，按下一交易日收盘价成交。${G.config.slippage ? `成交滑点为 ${G.config.slippage}%。` : ''}`, detail: `<span>双向佣金费率</span><b>${G.config.commission}%</b>`, confirm: '确认并推进', symbol: 'arrow', onConfirm: perform });
+}
+function quickTrade(action) {
+    if (quickBar.hidden || quickButtons[action]?.disabled) return;
+    performTrade(action, action === 'hold' ? 0 : 1, '', true);
+}
+function performTrade(action, ratio, rationale, quick = false) {
+    if (!G || G.revealed || loading) return;
+    try {
+        const result = E.advance(G, action, ratio, rationale, { holdIfUnaffordable: quick });
+        if (!quick || G.revealed) note = '';
+        if (G.revealed) {
+            const r = E.record(G);
+            if (!records.some(existing => existing.id === r.id)) records.push(r);
+            // Keep completed save if record persistence fails, so a refresh can recover it.
+            if (write(KEYS.records, records)) { write(KEYS.game, null); write(KEYS.legacy, null); } else write(KEYS.game, E.serialize(G));
+        } else save();
+        const feedback = result.action !== action ? '全买未成交 · 资金不足一个交易单位'
+            : result.action === 'hold' ? `日涨跌 ${pct(G.dailyRows.at(-1).chg)}`
+            : `${result.action === 'buy' ? '买入' : '卖出'} ${money(result.quantity)} 股 · 成交 ¥${result.price.toFixed(3)}`;
+        if (quick && !G.revealed) {
+            refreshQuickWorkspace(result, feedback);
+            return;
+        }
+        render();
+        if (quick) window.scrollTo({ top: 0 });
+        toast(G.revealed ? `训练完成 · 最终收益 ${pct(E.asset(G) / G.initCash - 1)}`
+            : result.action === 'hold' ? `第 ${G.day} 日已揭示 · ${pct(G.dailyRows.at(-1).chg)}`
+            : `${feedback}${result.fee ? ` · 佣金 ¥${result.fee.toFixed(2)}` : ''}`);
+    } catch (e) { toast(e.message); }
 }
 function exportRecords() {
     if (!records.length) return;
@@ -207,8 +290,10 @@ const toggle = (name, title, help) => `<label class="switch-row"><span><strong>$
 function settingsDialog(page = 'game') {
     if (document.querySelector('dialog[open]')) return;
     const d = document.createElement('dialog'); d.className = 'settings-dialog'; d.setAttribute('aria-labelledby', 'settings-title');
-    d.innerHTML = `<form class="settings-form" id="settings-form" novalidate><header class="dialog-header"><div><h2 id="settings-title">让工作台，适合你的节奏。</h2><p>训练规则、分析工具与使用偏好，统一设置。</p></div><button type="button" class="icon-btn" data-close aria-label="关闭设置">${icon('close')}</button></header><div class="settings-body"><nav class="settings-nav" aria-label="设置分类">${[['game', '训练规则', 'target'], ['chart', '图表与指标', 'chart'], ['preferences', '使用偏好', 'sliders']].map(([p, title, i]) => `<button type="button" data-settings-tab="${p}" class="${p === page ? 'active' : ''}">${icon(i)}${title}</button>`).join('')}</nav><div class="settings-pages"><section class="settings-page ${page === 'game' ? 'active' : ''}" data-settings-page="game">${G && !G.revealed ? `<div class="settings-notice">${icon('info')}<span>本局使用 ${G.config.days} 日、佣金 ${G.config.commission}% 的开局规则。下方训练设置将在<strong>新一局</strong>生效；图表与偏好设置立即应用。</span></div>` : ''}<div class="settings-section"><h3>游戏日期跨度</h3><p>以交易日计数，不含周末与休市日。短周期练节奏，长周期看趋势。</p><label class="setting-field"><span class="setting-label">每局交易日数 <small>7–500 个交易日</small></span><div class="days-input"><input name="days" id="settings-days" type="number" min="7" max="500" step="1" required value="${S.days}"><span>个交易日</span></div><input id="days-range" type="range" min="7" max="500" step="1" aria-label="调整游戏跨度" value="${S.days}"><div class="range-labels"><span>7 日</span><span>500 日</span></div></label><div class="presets">${[7, 14, 30, 60, 100, 200, 365, 500].map(v => `<button type="button" data-days="${v}" class="${S.days === v ? 'active' : ''}">${v} 日${v === 30 ? ' · 默认' : ''}</button>`).join('')}</div></div><div class="settings-divider"></div><div class="settings-section"><h3>标的范围</h3><p>可多选，至少选择一个范围。合并后按股票代码去重，每只股票抽中概率相同。</p><div class="market-options">${U.markets.map(m => `<label><input type="checkbox" name="market-${m.id}" ${S.markets.includes(m.id) ? 'checked' : ''}><span><strong>${m.name}</strong><small>${m.count.toLocaleString('zh-CN')} 只${['star', 'chinext'].includes(m.id) ? ' · 全部上市股票' : ' · 指数成分股'}</small></span></label>`).join('')}</div><p class="field-help" id="market-count">已选择 ${marketCount(S).toLocaleString('zh-CN')} 只独立标的 · 名单快照 ${U.asOf}</p></div><div class="settings-divider"></div><div class="settings-section"><h3>资金与交易成本</h3><p>费率按成交金额双向收取，买入手续费计入持仓成本。</p><div class="settings-grid">${field('initialCash', '初始资金（元）', 'number', 'min="10000" max="100000000" step="10000" required')}${selectField('lotSize', '交易单位', [[1, '按整股交易'], [100, '100 股一手']])}${field('commission', '双向佣金费率（%）', 'number', 'min="0" max="1" step="0.0001" required', '例如 0.03 = 万分之三；0 为免手续费。')}${field('slippage', '成交滑点（%）', 'number', 'min="0" max="1" step="0.0001" required', '买入价格上浮、卖出价格下调。')}</div></div><div class="settings-section"><h3>历史观察窗口</h3><p>更多历史 K 线帮助判断长期趋势。指标预热使用已经发生的历史数据。</p>${selectField('history', '开局前展示日 K 根数', [[120, '120 根 · 短线观察'], [200, '200 根 · 默认'], [500, '500 根 · 中期趋势'], [1000, '1,000 根 · 长期分析'], [2000, '2,000 根 · 多周期研究']])}</div></section><section class="settings-page ${page === 'chart' ? 'active' : ''}" data-settings-page="chart"><div class="settings-section"><h3>主图与周期</h3><p>均线叠加在 K 线主图，副图共享时间轴、十字光标与缩放。</p>${selectField('period', '默认 K 线周期', [['day', '日 K'], ['week', '周 K · 自然周聚合'], ['month', '月 K · 自然月聚合']])}${toggle('ma', '主图均线 MA', '最多 6 条均线，参数以当前周期 K 线根数计算。')}${field('maPeriods', '均线周期', 'text', 'required placeholder="5, 10, 20, 60"', '用逗号分隔，支持 2–250。历史不足完整周期时显示 —。', S.maPeriods.join(', '))}${toggle('costLine', '持仓成本线', '在主图以虚线显示包含买入手续费的平均持仓成本。')}${toggle('tradeMarkers', '买卖标记', '在主图标注 B 买入、S 卖出的位置。')}</div><div class="settings-divider"></div><div class="settings-section"><h3>成交量副图</h3>${toggle('volume', '成交量 VOL', '与 K 线涨跌同步着色，并叠加成交量均线。')}${field('volumePeriods', '成交量均线周期', 'text', 'required', '用逗号分隔，最多 2 条，支持 2–250。', S.volumePeriods.join(', '))}</div><div class="settings-divider"></div><div class="settings-section"><h3>MACD 副图</h3>${toggle('macd', 'MACD', 'DIF、DEA 曲线与双倍差值柱状图。')}${toggle('macdReadout', 'MACD 底部读数', '显示参数、DIF、DEA、MACD 值，随十字光标联动。')}<div class="settings-grid triple">${field('macdFast', '快线 EMA', 'number', 'min="2" max="100" step="1" required')}${field('macdSlow', '慢线 EMA', 'number', 'min="3" max="200" step="1" required')}${field('macdSignal', '信号周期', 'number', 'min="2" max="100" step="1" required')}</div></div><div class="settings-divider"></div><div class="settings-section"><h3>KDJ 副图</h3>${toggle('kdj', 'KDJ', 'K、D、J 三线与 20 / 80 参考线。')}${toggle('kdjReadout', 'KDJ 底部读数', '显示参数、K、D、J 值，随十字光标联动。')}<div class="settings-grid triple">${field('kdjPeriod', 'RSV 周期', 'number', 'min="2" max="100" step="1" required')}${field('kdjK', 'K 平滑周期', 'number', 'min="1" max="50" step="1" required')}${field('kdjD', 'D 平滑周期', 'number', 'min="1" max="50" step="1" required')}</div></div><div class="settings-section"><h3>副图读数显示</h3><p>底部读数与当前日、周、月周期一致；未移动光标时显示最新一根，移开后恢复。</p>${selectField('indicatorPrecision', '读数小数位数', [[2, '2 位'], [3, '3 位 · 默认'], [4, '4 位'], [5, '5 位'], [6, '6 位']])}${toggle('indicatorDirections', '显示升降箭头', '↑ 高于上一根，↓ 低于上一根，→ 持平；比较未四舍五入的值。')}</div></section><section class="settings-page ${page === 'preferences' ? 'active' : ''}" data-settings-page="preferences"><div class="settings-section"><h3>显示偏好</h3><p>选择舒适的工作环境，保持注意力集中。</p>${selectField('theme', '界面主题', [['light', '米白 · 日间工作台'], ['dark', '松绿 · 夜间工作台']])}${selectField('colorScheme', '涨跌颜色', [['red-up', '红涨绿跌 · A 股习惯'], ['green-up', '绿涨红跌 · 国际习惯']])}${toggle('coach', '交易手记', '在决策旁显示关于纪律和独立判断的提示。')}</div><div class="settings-divider"></div><div class="settings-section"><h3>交易交互</h3>${selectField('defaultSize', '默认下单比例', [[.25, '1/4 仓 · 25%'], [1 / 3, '1/3 仓 · 33.33%'], [.5, '1/2 仓 · 50%'], [1, '全仓 · 100%']])}${toggle('confirmOrders', '买卖前确认', '提交买卖时确认比例和费率；观望直接推进一天。')}${toggle('shortcuts', '键盘快捷操作', '输入文字或打开弹窗时，交易快捷键自动暂停。')}<div class="shortcut-row"><span>买入 / 卖出 / 观望</span><span><kbd>B</kbd> <kbd>S</kbd> <kbd>H</kbd></span></div><div class="shortcut-row"><span>提交当前决策</span><kbd>Enter</kbd></div><div class="shortcut-row"><span>日 K / 周 K / 月 K</span><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span></div><div class="shortcut-row"><span>打开设置</span><kbd>,</kbd></div></div><div class="settings-notice">${icon('check')}<span>设置与对局自动保存在当前浏览器，支持刷新后继续。战绩可在复盘页导出备份。</span></div></section><p class="form-error" id="settings-error" role="alert"></p></div></div><footer class="settings-footer"><button type="button" class="btn" data-reset-settings>${icon('reset')}恢复默认设置</button><div><button type="button" class="btn" data-close>取消</button><button type="submit" class="btn primary">保存设置 ${icon('check')}</button></div></footer></form>`;
+    d.innerHTML = `<form class="settings-form" id="settings-form" novalidate><header class="dialog-header"><div><h2 id="settings-title">让工作台，适合你的节奏。</h2><p>训练规则、分析工具与使用偏好，统一设置。</p></div><button type="button" class="icon-btn" data-close aria-label="关闭设置">${icon('close')}</button></header><div class="settings-body"><nav class="settings-nav" aria-label="设置分类">${[['game', '训练规则', 'target'], ['chart', '图表与指标', 'chart'], ['preferences', '使用偏好', 'sliders']].map(([p, title, i]) => `<button type="button" data-settings-tab="${p}" class="${p === page ? 'active' : ''}">${icon(i)}${title}</button>`).join('')}</nav><div class="settings-pages"><section class="settings-page ${page === 'game' ? 'active' : ''}" data-settings-page="game">${G && !G.revealed ? `<div class="settings-notice">${icon('info')}<span>本局使用 ${G.config.days} 日、佣金 ${G.config.commission}% 的开局规则。下方训练设置将在<strong>新一局</strong>生效；交易模式、图表和偏好保存后立即应用。</span></div>` : ''}<div class="settings-section"><h3>交易模式</h3>${selectField('tradeMode', '选择下单方式', [['quick', '极简模式 · 默认'], ['pro', '专业操盘手模式']])}<p>极简模式一键全买、全卖或持仓／持币。专业操盘手模式支持自定义仓位、交易理由和买卖确认。</p></div><div class="settings-divider"></div><div class="settings-section"><h3>游戏日期跨度</h3><p>以交易日计数，不含周末与休市日。短周期练节奏，长周期看趋势。</p><label class="setting-field"><span class="setting-label">每局交易日数 <small>7–500 个交易日</small></span><div class="days-input"><input name="days" id="settings-days" type="number" min="7" max="500" step="1" required value="${S.days}"><span>个交易日</span></div><input id="days-range" type="range" min="7" max="500" step="1" aria-label="调整游戏跨度" value="${S.days}"><div class="range-labels"><span>7 日</span><span>500 日</span></div></label><div class="presets">${[7, 14, 30, 60, 100, 200, 365, 500].map(v => `<button type="button" data-days="${v}" class="${S.days === v ? 'active' : ''}">${v} 日${v === 30 ? ' · 默认' : ''}</button>`).join('')}</div></div><div class="settings-divider"></div><div class="settings-section"><h3>标的范围</h3><p>可多选，至少选择一个范围。合并后按股票代码去重，每只股票抽中概率相同。</p><div class="market-options">${U.markets.map(m => `<label><input type="checkbox" name="market-${m.id}" ${S.markets.includes(m.id) ? 'checked' : ''}><span><strong>${m.name}</strong><small>${m.count.toLocaleString('zh-CN')} 只${['star', 'chinext'].includes(m.id) ? ' · 全部上市股票' : ' · 指数成分股'}</small></span></label>`).join('')}</div><p class="field-help" id="market-count">已选择 ${marketCount(S).toLocaleString('zh-CN')} 只独立标的 · 名单快照 ${U.asOf}</p></div><div class="settings-divider"></div><div class="settings-section"><h3>资金与交易成本</h3><p>费率按成交金额双向收取，买入手续费计入持仓成本。</p><div class="settings-grid">${field('initialCash', '初始资金（元）', 'number', 'min="10000" max="100000000" step="10000" required')}${selectField('lotSize', '交易单位', [[1, '按整股交易'], [100, '100 股一手']])}${field('commission', '双向佣金费率（%）', 'number', 'min="0" max="1" step="0.0001" required', '例如 0.03 = 万分之三；0 为免手续费。')}${field('slippage', '成交滑点（%）', 'number', 'min="0" max="1" step="0.0001" required', '买入价格上浮、卖出价格下调。')}</div></div><div class="settings-section"><h3>历史观察窗口</h3><p>更多历史 K 线帮助判断长期趋势。指标预热使用已经发生的历史数据。</p>${selectField('history', '开局前展示日 K 根数', [[120, '120 根 · 短线观察'], [200, '200 根 · 默认'], [500, '500 根 · 中期趋势'], [1000, '1,000 根 · 长期分析'], [2000, '2,000 根 · 多周期研究']])}</div></section><section class="settings-page ${page === 'chart' ? 'active' : ''}" data-settings-page="chart"><div class="settings-section"><h3>主图与周期</h3><p>均线叠加在 K 线主图，副图共享时间轴、十字光标与缩放。</p>${selectField('period', '默认 K 线周期', [['day', '日 K'], ['week', '周 K · 自然周聚合'], ['month', '月 K · 自然月聚合']])}${toggle('ma', '主图均线 MA', '最多 6 条均线，参数以当前周期 K 线根数计算。')}${field('maPeriods', '均线周期', 'text', 'required placeholder="5, 10, 20, 60"', '用逗号分隔，支持 2–250。历史不足完整周期时显示 —。', S.maPeriods.join(', '))}${toggle('costLine', '持仓成本线', '在主图以虚线显示包含买入手续费的平均持仓成本。')}${toggle('tradeMarkers', '买卖标记', '在主图标注 B 买入、S 卖出的位置。')}</div><div class="settings-divider"></div><div class="settings-section"><h3>成交量副图</h3>${toggle('volume', '成交量 VOL', '与 K 线涨跌同步着色，并叠加成交量均线。')}${field('volumePeriods', '成交量均线周期', 'text', 'required', '用逗号分隔，最多 2 条，支持 2–250。', S.volumePeriods.join(', '))}</div><div class="settings-divider"></div><div class="settings-section"><h3>MACD 副图</h3>${toggle('macd', 'MACD', 'DIF、DEA 曲线与双倍差值柱状图。')}${toggle('macdReadout', 'MACD 底部读数', '显示参数、DIF、DEA、MACD 值，随十字光标联动。')}<div class="settings-grid triple">${field('macdFast', '快线 EMA', 'number', 'min="2" max="100" step="1" required')}${field('macdSlow', '慢线 EMA', 'number', 'min="3" max="200" step="1" required')}${field('macdSignal', '信号周期', 'number', 'min="2" max="100" step="1" required')}</div></div><div class="settings-divider"></div><div class="settings-section"><h3>KDJ 副图</h3>${toggle('kdj', 'KDJ', 'K、D、J 三线与 20 / 80 参考线。')}${toggle('kdjReadout', 'KDJ 底部读数', '显示参数、K、D、J 值，随十字光标联动。')}<div class="settings-grid triple">${field('kdjPeriod', 'RSV 周期', 'number', 'min="2" max="100" step="1" required')}${field('kdjK', 'K 平滑周期', 'number', 'min="1" max="50" step="1" required')}${field('kdjD', 'D 平滑周期', 'number', 'min="1" max="50" step="1" required')}</div></div><div class="settings-section"><h3>副图读数显示</h3><p>底部读数与当前日、周、月周期一致；未移动光标时显示最新一根，移开后恢复。</p>${selectField('indicatorPrecision', '读数小数位数', [[2, '2 位'], [3, '3 位 · 默认'], [4, '4 位'], [5, '5 位'], [6, '6 位']])}${toggle('indicatorDirections', '显示升降箭头', '↑ 高于上一根，↓ 低于上一根，→ 持平；比较未四舍五入的值。')}</div></section><section class="settings-page ${page === 'preferences' ? 'active' : ''}" data-settings-page="preferences"><div class="settings-section"><h3>显示偏好</h3><p>选择舒适的工作环境，保持注意力集中。</p>${selectField('theme', '界面主题', [['light', '米白 · 日间工作台'], ['dark', '松绿 · 夜间工作台']])}${selectField('colorScheme', '涨跌颜色', [['red-up', '红涨绿跌 · A 股习惯'], ['green-up', '绿涨红跌 · 国际习惯']])}${toggle('coach', '交易手记', '在决策旁显示关于纪律和独立判断的提示。')}</div><div class="settings-divider"></div><div class="settings-section"><h3>交易交互</h3><div id="professional-preferences">${selectField('defaultSize', '默认下单比例', [[.25, '1/4 仓 · 25%'], [1 / 3, '1/3 仓 · 33.33%'], [.5, '1/2 仓 · 50%'], [1, '全仓 · 100%']])}${toggle('confirmOrders', '买卖前确认', '提交买卖时确认比例和费率；观望直接推进一天。')}</div>${toggle('shortcuts', '键盘快捷操作', '输入文字或打开弹窗时，交易快捷键自动暂停。')}<div class="shortcut-row"><span>买入 / 卖出 / 持仓或持币</span><span><kbd>B</kbd> <kbd>S</kbd> <kbd>H</kbd></span></div><div class="shortcut-row"><span>提交决策（专业模式）</span><kbd>Enter</kbd></div><div class="shortcut-row"><span>日 K / 周 K / 月 K</span><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span></div><div class="shortcut-row"><span>打开设置</span><kbd>,</kbd></div></div><div class="settings-notice">${icon('check')}<span>设置与对局自动保存在当前浏览器，支持刷新后继续。战绩可在复盘页导出备份。</span></div></section><p class="form-error" id="settings-error" role="alert"></p></div></div><footer class="settings-footer"><button type="button" class="btn" data-reset-settings>${icon('reset')}恢复默认设置</button><div><button type="button" class="btn" data-close>取消</button><button type="submit" class="btn primary">保存设置 ${icon('check')}</button></div></footer></form>`;
     const form = d.querySelector('form');
+    const syncMode = () => { $('professional-preferences').hidden = form.elements.tradeMode.value !== 'pro'; };
+    form.elements.tradeMode.addEventListener('change', syncMode);
     const tab = p => { d.querySelectorAll('[data-settings-tab]').forEach(b => b.classList.toggle('active', b.dataset.settingsTab === p)); d.querySelectorAll('[data-settings-page]').forEach(el => el.classList.toggle('active', el.dataset.settingsPage === p)); d.querySelector('.settings-pages').scrollTop = 0; };
     d.querySelectorAll('[data-settings-tab]').forEach(b => b.onclick = () => tab(b.dataset.settingsTab));
     d.querySelectorAll('[data-close]').forEach(b => b.onclick = () => d.close());
@@ -226,7 +311,7 @@ function settingsDialog(page = 'game') {
             const input = form.elements[name]; if (!input) continue;
             if (input.type === 'checkbox') input.checked = value; else input.value = Array.isArray(value) ? value.join(', ') : value;
         }
-        syncDays(30); syncMarkets(); $('settings-error').textContent = '默认设置已填入，点击保存后应用。';
+        syncDays(E.DEFAULTS.days); syncMarkets(); syncMode(); $('settings-error').textContent = '默认设置已填入，点击保存后应用。';
     };
     form.onsubmit = event => {
         event.preventDefault();
@@ -246,11 +331,11 @@ function settingsDialog(page = 'game') {
         }
         if (draft.macdFast >= draft.macdSlow) { tab('chart'); $('settings-error').textContent = 'MACD 快线周期必须小于慢线周期。'; form.elements.macdFast.focus(); return; }
         const newSettings = E.settings(draft), changedPeriod = S.period !== newSettings.period;
-        S = newSettings; size = S.defaultSize; write(KEYS.settings, S); d.close(); if (changedPeriod) MarketChart.reset(); render(); toast(G && !G.revealed ? '已保存。图表即时更新，训练规则在新一局生效。' : '设置已保存');
+        S = newSettings; size = S.defaultSize; write(KEYS.settings, S); d.close(); if (changedPeriod) MarketChart.reset(); render(); toast(G && !G.revealed ? '已保存。交易模式和图表即时更新，训练规则在新一局生效。' : '设置已保存');
     };
     d.addEventListener('close', () => d.remove(), { once: true });
     d.addEventListener('click', event => { if (event.target === d) { const rect = d.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) d.close(); } });
-    document.body.append(d); d.showModal();
+    document.body.append(d); syncMode(); d.showModal();
 }
 function refreshChart() {
     if (!$('chart')) return;
@@ -263,10 +348,11 @@ function refreshChart() {
 function setPeriod(period) { S.period = period; write(KEYS.settings, S); MarketChart.reset(); refreshChart(); }
 function fullscreen() {
     const el = $('chart-card'); if (!el) return;
-    if (el.classList.contains('fullscreen-fallback')) { el.classList.remove('fullscreen-fallback'); MarketChart.resize(); return; }
+    if (el.classList.contains('fullscreen-fallback')) { el.classList.remove('fullscreen-fallback'); placeQuickTrade(); MarketChart.resize(); return; }
     if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
-    if (el.requestFullscreen) el.requestFullscreen().catch(() => { el.classList.add('fullscreen-fallback'); MarketChart.resize(); });
-    else { el.classList.add('fullscreen-fallback'); MarketChart.resize(); }
+    const fallback = () => { el.classList.add('fullscreen-fallback'); placeQuickTrade(); MarketChart.resize(); };
+    if (el.requestFullscreen) el.requestFullscreen().catch(fallback);
+    else fallback();
 }
 document.addEventListener('click', event => {
     const button = event.target.closest('[data-action]'); if (!button || button.disabled) return;
@@ -287,6 +373,7 @@ document.addEventListener('click', event => {
         case 'order': orderType = button.dataset.order; render(); break;
         case 'size': size = Number(button.dataset.size); render(); break;
         case 'submit-order': submit(); break;
+        case 'quick-trade': quickTrade(button.dataset.order); break;
         case 'export': exportRecords(); break;
         case 'clear-records': confirmDialog({ title: '清空全部战绩？', body: '训练档案清空后无法恢复。需要留存时，可以先导出 CSV。当前进行中的对局会保留。', confirm: '清空战绩', danger: true, onConfirm: () => { records = []; write(KEYS.records, []); render(); toast('战绩已清空'); } }); break;
         case 'abandon':
@@ -295,16 +382,22 @@ document.addEventListener('click', event => {
     }
 });
 document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && $('chart-card')?.classList.contains('fullscreen-fallback')) { $('chart-card').classList.remove('fullscreen-fallback'); MarketChart.resize(); }
+    if (event.key === 'Escape' && $('chart-card')?.classList.contains('fullscreen-fallback')) fullscreen();
+    if (event.repeat && ['Enter', ' '].includes(event.key) && event.target.closest('[data-action=quick-trade]')) event.preventDefault();
     if (!S.shortcuts || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.target.closest('input, textarea, select, [contenteditable=true]') || document.querySelector('dialog[open]') || view !== 'workspace' || loading) return;
     const key = event.key.toLowerCase();
     if (key === ',') { event.preventDefault(); settingsDialog(); }
     else if (['1', '2', '3'].includes(key)) { event.preventDefault(); setPeriod({ 1: 'day', 2: 'week', 3: 'month' }[key]); }
-    else if (G && !G.revealed && ['b', 's', 'h'].includes(key)) { event.preventDefault(); if (key === 's' && !G.shares) { toast('当前没有可卖出持仓'); return; } orderType = { b: 'buy', s: 'sell', h: 'hold' }[key]; render(); }
-    else if (key === 'enter' && G && !G.revealed && !event.target.closest('button, a')) { event.preventDefault(); submit(); }
+    else if (G && !G.revealed && Object.hasOwn(tradeKeys, key)) {
+        event.preventDefault();
+        if (S.tradeMode === 'quick') return quickTrade(tradeKeys[key]);
+        if (key === 's' && !G.shares) { toast('当前没有可卖出持仓'); return; }
+        orderType = tradeKeys[key]; render();
+    }
+    else if (key === 'enter' && G && !G.revealed && S.tradeMode === 'pro' && !event.target.closest('button, a')) { event.preventDefault(); submit(); }
 });
 window.addEventListener('resize', () => equity?.resize());
-document.addEventListener('fullscreenchange', () => MarketChart.resize());
+document.addEventListener('fullscreenchange', () => { placeQuickTrade(); MarketChart.resize(); });
 window.addEventListener('app:before-update', event => {
     if (loading || document.querySelector('dialog[open]')) { event.preventDefault(); toast('请先完成或关闭当前操作，再点击更新。'); return; }
     if (!save()) { event.preventDefault(); return; }

@@ -37,7 +37,7 @@
 
 ## 2. 引擎与设置契约
 
-TradingEngine 导出 DEFAULTS、settings、dateString、aggregate、sma、ema、macd、kdj、createGame、currentBar、asset、drawdown、advance、serialize、hydrate、migrate、record。
+TradingEngine 导出 DEFAULTS、settings、dateString、aggregate、sma、ema、macd、kdj、createGame、currentBar、asset、canBuyAll、drawdown、advance、serialize、hydrate、migrate、record。
 
 settings(input) 从默认值补全、校验并归一化，不修改调用方对象：
 
@@ -63,6 +63,7 @@ settings(input) 从默认值补全、校验并归一化，不修改调用方对�
 | theme | light | light/dark |
 | colorScheme | red-up | red-up/green-up |
 | confirmOrders、shortcuts、coach | true | 交互偏好 |
+| tradeMode | quick | 交易交互模式，取 quick 或 pro，缺失时默认为 quick |
 | defaultSize | 0.25 | 比例 0.01–1；UI 提供 1/4、1/3、1/2、1 |
 
 表单使用 required、min、max、step 校验，数组周期另外校验格式、重复和数量，MACD 校验快慢关系。错误字段位于隐藏分类时先切换分类，再聚焦并报告错误。settings() 用于存档和输入兜底；正常 UI 提交不能依赖静默修正代替错误提示。
@@ -191,7 +192,9 @@ updateReadout 在 updateAxisPointer 和鼠标移出时更新 OHLC、MA、MACD �
 
 start() 先用 U.pool(config.markets) 获取去重池，再逐次尝试最多 8 个随机标的。fetchToken 用于取消后忽略晚到结果；每个脚本请求在 8 秒超时后移除并清理监听。取消是本地中止流程，不制造虚假训练记录。历史不足的股票不能截短配置的 500 日训练，只能换下一只。
 
-每次 render() 清理旧图表实例再渲染当前页面；图表周期与副图切换使用 refreshChart() 局部刷新，避免丢失交易备注。快捷键检查 modifier、isComposing、repeat、输入区、弹窗和当前 view，避免输入文字触发交易。
+`render()` 清理旧图表实例再渲染当前页面。图表周期与副图切换使用 `refreshChart()` 局部刷新。极简模式的底部操作栏保留同一组按钮节点，每次决策同步更新账户、日志、按钮状态与存档，行情图按浏览器动画帧合并刷新。进入原生或兼容全屏时，操作栏随行情图进入全屏容器。
+
+`S.tradeMode` 保存为浏览器偏好，可在进行中切换。极简买卖用比例 `1`，持仓或持币用 `hold`；可买状态由 `canBuyAll()` 依据已揭示日 K、佣金、滑点与交易单位估算。若下一日的实际价格使全买无法成交，`advance()` 按持有推进并记录原因。专业模式共用原成交逻辑，继续支持下单比例、理由与确认。快捷键检查修饰键、输入法、重复按键、输入区、弹窗和当前视图。
 
 app:before-update 是可取消事件。游戏监听后，在加载或存在打开弹窗时阻止更新；先调用 save()，失败阻止刷新；成功后将当前 gameId、orderType、size、note、view 存入 sessionStorage。新页面仅在 gameId 匹配时恢复一次，然后清除草稿。
 
