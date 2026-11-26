@@ -15,7 +15,10 @@
 | scripts/requirements-universe.txt | 名单刷新所需的 Python 依赖 |
 | decoder.js | 新浪脚本加载、解码、前复权，全局 Util |
 | engine.js | 纯计算和存档契约，浏览器 TradingEngine、Node module.exports |
+| chart-studies.js | 复权和指标计算、图表设置校验及旧设置迁移，全局 ChartStudies |
 | market-chart.js | 已知数据裁剪、周期聚合、指标预热、ECharts 联动，全局 MarketChart |
+| chart-controls.js | 复权、绘图、副图和主图设置的对话框，全局 ChartControls |
+| chart-drawing.js | 图表标注绘制和按对局持久化，全局 MarketDrawing |
 | game.js | 游戏状态、DOM 渲染、事件、设置、战绩与更新前保存 |
 | pwa.js | 安装提示、Service Worker 注册、检查状态、应用更新，全局 AppPWA |
 | manifest.webmanifest | 应用身份、相对 scope/start_url、图标和 standalone 模式 |
@@ -87,7 +90,7 @@ StockUniverse 导出 `{asOf,markets,stocks,pool,describe}`。markets 条目包�
   close: number, volume: number, amount: number, prevclose?: number }
 ```
 
-价格必须是有限正数，date 必须是有效日期。数据在调用 createGame 前经 Util.applyQfq() 进行前复权。applyQfq 使用日线 prevclose 与前一收盘比值形成因子，对除权日之前的价格累乘；成交量不进行价格复权。当前复权基准是加载到的完整行情最新价格。
+价格必须是有限正数，date 必须是有效日期。调用 createGame 前，ChartStudies.preparedBars() 保持以完整行情末日为基准的执行价格，并将源 OHLC 与 prevclose 一并存入 original。复权因子由 prevclose / 前一交易日收盘价得到；成交量与成交额保留源数据。
 
 ### 3.3 对局 G
 
@@ -145,46 +148,33 @@ record() 计算单局收益、未扣成本的买入持有基准、是否跑赢�
 
 ## 5. 行情图与指标算法
 
-### 5.1 已知数据边界
+### 5.1 复权和已知数据边界
 
-MarketChart.model() 必须先裁剪，再聚合：
+MarketChart.model() 先限制可用日线与除权因子，再聚合并计算指标。
 
 ```text
 from = max(0, histStart−1500)
 knownEnd = gameStart+day                // exclusive
-knownBars = kList.slice(from, knownEnd)
+knownBars = ChartStudies.prices(game, from, knownEnd, adjustment)
 all = aggregate(knownBars, period, from)
 visible = 从 endIndex>=histStart 的第一根周期开始
 ```
 
-均线、成交量均线、MACD、KDJ 先对 all 计算，再裁掉预热部分。不能对完整未来 kList 计算后仅隐藏蜡烛图。周月末根同样受 knownEnd 约束。
+前复权从已知末根向前累乘后续除权因子，后复权从图表预热起点向后除以已发生的因子。不复权使用源 OHLC。旧存档无 original，保留已有执行价格。日、周、月的聚合边界都受 knownEnd 约束。指标在聚合序列预热，随后裁掉预热前缀。锚定 VWAP 按已知日线累计，再在聚合桶的末日取样。
 
-aggregate() 周键使用当地年月日构造 UTC 日期并回退至周一，月键使用年月，日键使用年月日；聚合条目额外包含 key、firstDate、startIndex、endIndex、count。OHLC 和成交量规则见产品规格。
+相对标签用 D/W/M，训练前为负索引，开始后为正索引。揭晓后显示真实日期。成本线乘以当前图表价与执行价的比值；B/S 以成交日索引定位所处聚合桶。
 
-相对标签用 D/W/M；训练前为负索引、训练周期为正索引。揭晓后才能显示真实日期。tooltip 不输出股票对象或未揭示数据。
+### 5.2 指标和信号
 
-### 5.2 指标公式
+指标注册表声明参数、可用交叉对象和输出序列。MACD 延续原标准，即 DIF=EMA快−EMA慢，DEA 为 DIF 的 EMA，柱为两倍差值。KDJ 延续初始 K/D=50 的递推。RSI、ATR 和 DMI/ADX 使用 Wilder 平滑。布林带中轨用 SMA，带宽取窗口总体标准差乘以倍数。超级趋势用 ATR 与最终上下轨确定翻转。一目均衡云按配置正向位移到已知周期，一律不生成未来 K 线。公式边界和预热由测试覆盖。
 
-- SMA(N)：最近 N 根的算术平均，完整 N 根之前为 null，滑动累加求和。
-- EMA(N)：首值取首个收盘，之后 EMA=2×C/(N+1)+(N−1)×EMA前值/(N+1)。
-- MACD：DIF=EMA快−EMA慢，DEA=EMA(DIF,信号周期)，柱=2×(DIF−DEA)。
-- KDJ：完整 RSV 周期前 null；RSV=(C−窗口最低)/(窗口最高−窗口最低)×100，平盘窗口 RSV=50；初始 K/D=50；K=(前K×(K周期−1)+RSV)/K周期，D=(前D×(D周期−1)+K)/D周期，J=3K−2D。
+交叉在比较对象从一侧穿至另一侧时标记。贴线期间保留最近方向，数值缺失会重置方向。读数以原始计算值和同周期前值比较，随后应用精度格式。只有完整样本才开始输出需要窗口的序列。
 
-KDJ y 轴不强制夹在 0–100，保留 J 的可能越界值；20/80 仅是视觉参考线。
+### 5.3 图表布局和绘图
 
-### 5.3 ECharts 结构
+价格 grid 与最多五个独立副图 grid 共享 dataZoom 和 axisPointer。桌面按默认高度绘制，紧凑模式用视口、图表工具栏和交易栏的实测尺寸为主图与前三个副图分配空间，并在第三副图后显示缩放条。每个副图的参数、读数、信号、相对高度和排序保存在浏览器的图表偏好中。新增设置直接更新现有图表实例，切换周期会重置缩放。
 
-第 0 个 grid 是价格主图，candlestick 和 MA 共享 xAxis/yAxis=0。启用的成交量、MACD、KDJ 按顺序获得独立 grid 和 axis。所有 grid 由 axisPointer.link 和 dataZoom xAxisIndex 数组联动。
-
-图表高度由主图 285px、副图每个 90px、间隙、底栏与滑块构成。MACD/KDJ 开启读数时增加底栏空间；容器小于 520px 时采用两行，ResizeObserver 跨越此边界时重排。底栏位于各副图 grid 下方，末副图先留时间刻度空间，再放底栏，不能叠在缩放条上。DOM 替换前 dispose。周期切换保留决策表单并重置缩放，副图开关保留视窗。追踪最新窗口随数据推进，查看历史时不强行跳到最新。
-
-成本线来自 g.costBasis/g.shares。B/S 标记通过成交日索引查找所在聚合 K 线。图表颜色跟随全局 theme/colorScheme。
-
-### 5.4 副图底部读数
-
-model 的 macd/kdj 对象保留可见数组及第一根可见值之前的 prior 值，支持可见窗口边界上的相邻周期比较。indicatorReadout(model,index,settings,sub) 返回 label/color/value/previous/formatted/direction/arrow，direction 为 up/down/flat/unknown。先检查 null 和有限数值，不能把 null 当零；比较原始值后按 indicatorPrecision 格式化，无前值不显示箭头。indicatorDirections 只控制箭头显示。
-
-updateReadout 在 updateAxisPointer 和鼠标移出时更新 OHLC、MA、MACD 底栏和 KDJ 底栏。底栏使用独立定位 DOM 放在副图下，不改变曲线或计算；tooltip 使用同一格式化与比较结果。MACD 显示快/慢/信号参数与 DIF/DEA/MACD，KDJ 显示 RSV/K/D 平滑参数与 K/D/J。支持独立读数开关、统一 2–6 位精度和箭头开关。
+绘图使用单独的 Canvas，与 ECharts 的 grid 坐标互换。绘图锚点用相对 gameStart 的日索引和原始价格保存，重载后无需依赖历史数组的绝对索引。渲染时换算图表价格口径，再把交易日映射到当前周期。未保存原始价格的旧对局使用其唯一口径。
 
 ## 6. 页面状态与交互
 

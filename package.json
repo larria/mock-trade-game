@@ -1,6 +1,6 @@
 {
   "name": "mock-trade-game",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A股简单 · 多市场历史行情盲图模拟交易游戏",
   "scripts": {
     "deploy": "gh-pages -d dist --nojekyll",

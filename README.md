@@ -4,6 +4,8 @@
 
 [在线体验](https://larria.github.io/mock-trade-game/) · [版本记录](CHANGELOG.md)
 
+行情图支持日、周、月 K 线，默认前复权。可叠加布林带、一目均衡云、超级趋势、锚定 VWAP 等指标，自选最多五个副图，并可画趋势线、斐波那契回撤及量距。手机首屏优先展示主图和前三个副图。默认副图为 VOL、MACD 和 RSI。
+
 ## 规格文档
 
 - [产品规格](docs/PRODUCT_SPEC.md)：用户流程、交易规则、参数范围、图表、存档、PWA 与验收要求。

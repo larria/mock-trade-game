@@ -11,7 +11,7 @@ function buildPWA(directory = root, output = null) {
     if (!notes?.length || notes.length > 12 || notes.some(note => !note || note.length > 240)) {
         throw new Error(`Add 1–12 release notes for v${version} to CHANGELOG.md`);
     }
-    const assets = ['index.html', 'styles.css', 'vendor/echarts.min.js', 'stock-universe.js', 'decoder.js', 'engine.js', 'market-chart.js', 'game.js', 'pwa.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
+    const assets = ['index.html', 'styles.css', 'vendor/echarts.min.js', 'stock-universe.js', 'decoder.js', 'engine.js', 'chart-studies.js', 'chart-drawing.js', 'market-chart.js', 'chart-controls.js', 'game.js', 'pwa.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
     const template = fs.readFileSync(path.join(directory, 'scripts/sw-template.js'), 'utf8');
     const integrity = contents => `sha256-${crypto.createHash('sha256').update(contents).digest('base64')}`;
     const assetHashes = Object.fromEntries(assets.map(file => [file, integrity(fs.readFileSync(path.join(directory, file)))]));

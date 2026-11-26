@@ -89,13 +89,13 @@ test('SMA, EMA, MACD and KDJ produce standard values without future samples', ()
     assert.equal(k.k[7], null); assert.equal(k.k[8], 50); assert.equal(k.d[19], 50); assert.equal(k.j[19], 50);
 });
 test('chart model ignores future values in day, week and month modes', () => {
-    global.window = {}; global.TradingEngine = E; require('../market-chart.js');
+    const Chart = require('../market-chart.js');
     const g = E.createGame(data(), {}, { history: 500, days: 200 }, () => .6);
     E.advance(g, 'hold');
     for (const period of ['day', 'week', 'month']) {
-        const s = E.settings({ period, kdj: true }), original = window.MarketChart.model(g, s);
+        const s = E.settings({ period, kdj: true }), original = Chart.model(g, s);
         const poisoned = { ...g, kList: g.kList.map((b, i) => i >= g.gameStart + g.day ? { ...b, close: 999999, high: 999999, volume: 999999999 } : b) };
-        assert.deepEqual(window.MarketChart.model(poisoned, s), original);
+        assert.deepEqual(Chart.model(poisoned, s), original);
         assert.ok(original.bars.every(b => b.endIndex < g.gameStart + g.day));
         assert.ok(original.labels.every(label => !/\d{4}-\d{2}/.test(label)));
     }

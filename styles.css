@@ -91,3 +91,125 @@
     .chart-card>.quick-trade{bottom:0;padding-bottom:calc(9px + env(safe-area-inset-bottom))}
     .quick-trade-active #toasts{bottom:calc(12px + var(--quick-trade-height) + var(--mobile-nav-height) + env(safe-area-inset-bottom))}
 }
+
+/* Price and studies share one chart surface. */
+.trading-workspace{grid-template-areas:"overview overview" "stats stats" "chart decision" "journal decision";row-gap:20px}
+.trading-workspace>.workspace-overview{grid-area:overview}
+.workspace-overview>.page-heading,.workspace-overview>.results-banner,.trading-workspace>.stats,.trading-workspace>.journal{margin:0}
+.workspace-overview>.results-banner{margin-top:16px}
+.trading-workspace>.stats{grid-area:stats}
+.trading-workspace>.chart-card{grid-area:chart;min-width:0}
+.trading-workspace>.decision-column{grid-area:decision;min-width:0}
+.trading-workspace>.journal{grid-area:journal;min-width:0}
+.chart-heading{align-items:center}
+.chart-start{display:none}
+.chart-title{min-width:0}
+.chart-tools{display:flex;align-items:center;gap:3px;min-width:0}
+.chart-tool{display:flex;align-items:center;justify-content:center;gap:5px;flex:none;min-height:34px;padding:0 8px;border-radius:5px;background:transparent;color:var(--soft);font-size:11px;font-weight:600;white-space:nowrap;touch-action:manipulation}
+.chart-tool .icon{width:16px;height:16px}
+.chart-tool:hover,.chart-tool[aria-pressed=true],.chart-picker [aria-pressed=true]{background:var(--tint);color:var(--green)}
+.stock-quote{white-space:nowrap}
+.chart-data .ohlc,.chart-data .ma-legend{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;white-space:nowrap;min-height:0}
+.chart-data .ohlc::-webkit-scrollbar,.chart-data .ma-legend::-webkit-scrollbar,.chart-pane-values::-webkit-scrollbar{display:none}
+.chart-data .ma-legend[hidden]{display:none}
+.chart-data .ma-legend span,.indicator-metric{color:var(--study-color)}
+.chart-data .ma-legend b,.indicator-metric b{color:var(--ink);font-variant-numeric:tabular-nums}
+[data-theme="dark"] .chart-data .ma-legend span,[data-theme="dark"] .indicator-metric{color:color-mix(in srgb,var(--study-color) 66%,white)}
+#chart,.chart-card:fullscreen #chart{height:auto;min-height:0}
+.chart-surface{width:100%;height:320px}
+.chart-pane-controls{position:absolute;inset:0;pointer-events:none;z-index:3}
+.chart-pane-header{position:absolute;left:var(--chart-grid-left);right:var(--chart-grid-right);height:var(--chart-pane-header-height);display:flex;align-items:center;gap:12px;min-width:0;border-top:1px solid var(--line);font-size:11px;color:var(--soft)}
+.chart-pane-header>b{flex:none;font-weight:600}
+.chart-pane-header>button{pointer-events:auto;flex:none;display:grid;place-items:center;height:100%;width:38px;padding:0;background:transparent;color:var(--soft);border-radius:4px;touch-action:manipulation}
+.chart-pane-header>button:hover{background:var(--tint);color:var(--green)}
+.chart-pane-header .icon{width:15px;height:15px}
+.chart-pane-values{display:flex;align-items:center;gap:9px;min-width:0;flex:1;white-space:nowrap;overflow-x:auto;scrollbar-width:none;touch-action:pan-y}
+.chart-pane-values .indicator-metric{flex:none;gap:2px}
+.indicator-metric i{font-style:normal}
+.chart-drawing-layer{position:absolute;inset:0;width:100%;pointer-events:none;z-index:2}
+.chart-drawing-layer.is-drawing{pointer-events:auto;touch-action:none;cursor:crosshair}
+.chart-drawing-banner{position:absolute;z-index:4;left:48px;right:12px;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:3px 5px 3px 9px;background:var(--tint);border:1px solid var(--line);color:var(--green);border-radius:5px;font-size:11px}
+.chart-drawing-banner:not(:has(.chart-drawing-status:not([hidden]))){display:none}
+.chart-drawing-banner .btn{padding:3px 9px}
+.chart-card{position:relative}
+.chart-dialog{width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+.chart-dialog form{display:flex;flex-direction:column;max-height:inherit}
+.chart-dialog .dialog-header{padding:10px 16px}
+.chart-dialog .dialog-header h2{font-size:16px}
+.chart-dialog-body{padding:14px 16px;overflow:auto;overscroll-behavior:contain}
+.chart-dialog-note{color:var(--soft);font-size:12px;margin-bottom:12px}
+.chart-dialog .setting-field{margin-bottom:12px}
+.chart-dialog-footer{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+.chart-dialog .btn{min-height:34px}
+.chart-check{display:flex;align-items:center;gap:8px;padding:7px 0;color:var(--soft)}
+.chart-check input{accent-color:var(--green)}
+.chart-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.chart-picker button{justify-content:flex-start;white-space:normal;text-align:left;gap:7px}
+.chart-picker button small{margin-left:auto;color:var(--muted);font-size:9px}
+.chart-picker button b{color:var(--ink)}
+.chart-range,.chart-pane-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chart-pane-actions{margin:8px 0 0}
+.chart-pane-actions .danger{margin-left:auto}
+.chart-drawing-list>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+.chart-overlay{border-top:1px solid var(--line);padding:7px 0}
+.chart-overlay summary{padding:5px 0;cursor:pointer;color:var(--soft)}
+.chart-overlay summary b{color:var(--ink)}
+
+@media(max-width:780px),(max-height:550px){
+    .chart-workspace .content{padding-top:4px}
+    .chart-workspace .topbar{height:42px}
+    .trading-workspace{grid-template-columns:minmax(0,1fr);grid-template-areas:"chart" "stats" "decision" "overview" "journal";row-gap:10px}
+    .chart-heading{padding:4px 10px;gap:6px;min-height:32px}
+    .chart-heading .stock-symbol{display:none}
+    .chart-heading .chart-title{font-size:12px;gap:4px}
+    .chart-heading .stock-quote{display:flex;align-items:baseline;gap:6px}
+    .chart-heading .price{font-size:16px;line-height:1.4}
+    .chart-heading .change{font-size:9px;margin:0}
+    .chart-start{display:inline-flex;min-height:28px;padding:3px 7px;margin-left:auto}
+    .chart-toolbar{flex-wrap:nowrap;gap:4px;padding:1px 6px}
+    .chart-tools{gap:0}
+    .chart-tool{min-width:30px;min-height:34px;padding:0 5px;font-size:10px}
+    .chart-toolbar .segmented{gap:0;padding:1px}
+    .chart-toolbar .segmented button{font-size:10px;min-height:29px;padding:2px 6px}
+    .chart-data .ohlc,.chart-data .ma-legend{padding:2px 8px 0;gap:6px;font-size:9px}
+    .chart-pane-header{font-size:10px;gap:6px}
+    .chart-pane-header>button{width:40px}
+    .chart-pane-values{gap:6px}
+    .trading-workspace .page-heading{margin:0;padding:4px}
+    .trading-workspace .page-heading h1{font-size:16px}
+    .trading-workspace .page-heading .eyebrow,.trading-workspace .page-heading p{display:none}
+    .trading-workspace .heading-actions{margin:0}
+    .chart-card:fullscreen,.chart-card.fullscreen-fallback{padding:0}
+}
+@media(max-width:560px){
+    .chart-workspace .content{padding-inline:5px}
+    .chart-tools .chart-tool span{display:none}
+    .chart-workspace .top-actions>[data-action=guide]{display:none}
+    .chart-workspace .mobile-nav{height:calc(45px + env(safe-area-inset-bottom));padding-top:3px;padding-bottom:calc(3px + env(safe-area-inset-bottom))}
+    .quick-trade-active.chart-workspace{--mobile-nav-height:45px}
+}
+@media(max-width:355px){
+    .chart-heading .change .muted{display:none}
+}
+@media(min-width:561px) and (max-height:450px){
+    .chart-workspace .topbar{height:29px}
+    .chart-workspace .chart-heading{display:inline-flex;width:35%;vertical-align:middle}
+    .chart-workspace .chart-toolbar{display:inline-flex;width:65%;vertical-align:middle;border-top:0}
+    .chart-workspace .quick-trade-status{height:16px;margin-bottom:1px}
+    .chart-workspace .quick-trade{padding-top:4px;padding-bottom:4px}
+}
+.chart-pane-header small{font-size:9px;color:var(--muted);font-weight:400}
+.chart-pane-values{pointer-events:auto;touch-action:auto}
+@media(max-width:780px),(max-height:550px){
+    .chart-pane-header small{display:none}
+}
+@media(min-width:561px) and (max-height:450px){
+    .chart-top{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+    .chart-workspace .chart-toolbar{border-bottom:0}
+    .chart-workspace .quick-trade-inner{display:grid;max-width:none;grid-template-columns:auto minmax(0,500px);justify-content:center;align-items:center;gap:12px}
+    .chart-workspace .quick-trade-status{margin:0;font-size:11px;max-width:240px}
+}
+.chart-signal{color:var(--green);font-weight:600}
+@media(max-width:780px),(max-height:550px){
+    .chart-surface{touch-action:pan-y}
+}
