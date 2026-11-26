@@ -74,31 +74,40 @@ function layout(dom, specs) {
     const card = dom.closest('.chart-card');
     const nav = fullscreen ? 0 : document.querySelector('.mobile-nav')?.getBoundingClientRect().height || 0;
     const above = dom.getBoundingClientRect().top - card.getBoundingClientRect().top;
-    const top = fullscreen ? 0 : card.getBoundingClientRect().top + window.scrollY;
+    const top = fullscreen ? 0 : Math.max(0, card.getBoundingClientRect().top + window.scrollY);
+    const immersive = document.body.classList.contains('in-session');
     const budget = Math.floor(viewport - top - dock - nav - above - 4);
     const veryShort = compactLayout && budget < 248;
-    const headerSize = compactLayout ? (veryShort ? 22 : budget < 290 ? 25 : 30) : 33;
-    const axisSpace = compactLayout ? 31 : 46;
+    const denseDesktop = immersive && !compactLayout && budget < 525;
+    const headerSize = compactLayout ? (veryShort ? 22 : budget < 290 ? 25 : 30) : denseDesktop ? 27 : 33;
+    const axisSpace = compactLayout ? 31 : denseDesktop ? 40 : 46;
     const heights = specs.map(spec => {
         const factor = { compact: 0.76, normal: 1, large: 1.32 }[spec.height];
         const base = compactLayout ? Math.min(58, Math.max(veryShort ? 17 : 20, Math.floor((budget - 192) / 4))) : 105;
         return Math.round(base * factor);
     });
-    const minMain = veryShort ? 58 : 76;
-    const firstCount = Math.min(3, specs.length);
+    const minMain = compactLayout ? (veryShort ? 58 : 76) : denseDesktop ? 165 : 210;
+    const fit = compactLayout || immersive;
+    // On wide screens use the available height for as many studies as will fit.
+    let firstCount = fit ? Math.min(3, specs.length) : specs.length;
+    if (immersive && !compactLayout) {
+        while (firstCount < specs.length && budget >= axisSpace + minMain + 12 +
+            heights.slice(0, firstCount + 1).reduce((sum, h) => sum + Math.ceil(h * 0.8) + headerSize + 3, 0)) firstCount++;
+    }
     const headersHeight = firstCount * (headerSize + 3);
     const firstPanesHeight = heights.slice(0, firstCount).reduce((sum, h) => sum + h, 0);
     const roomForPanes = budget - axisSpace - 12 - minMain - headersHeight;
-    if (compactLayout && firstPanesHeight > roomForPanes) {
+    if (fit && firstPanesHeight > roomForPanes) {
         const scale = roomForPanes / firstPanesHeight;
-        for (let i = 0; i < firstCount; i++) heights[i] = Math.max(14, Math.floor(heights[i] * scale));
+        for (let i = 0; i < firstCount; i++) heights[i] = Math.max(compactLayout ? 14 : 30, Math.floor(heights[i] * scale));
     }
-    const firstThree = heights.slice(0, firstCount).reduce((sum, h) => sum + h, headersHeight);
-    const mainHeight = compactLayout ? Math.max(minMain, Math.min(340, budget - firstThree - axisSpace - 12)) : 315;
+    const visiblePanesHeight = heights.slice(0, firstCount).reduce((sum, h) => sum + h, headersHeight);
+    const remaining = budget - visiblePanesHeight - axisSpace - 12;
+    const mainHeight = fit ? Math.max(minMain, immersive ? remaining : Math.min(340, remaining)) : 315;
     const left = compactLayout ? 44 : 61, right = compactLayout ? 13 : 25;
     const grids = [{ left, right, top: 5, height: mainHeight }];
     const headers = [];
-    const sliderIndex = compactLayout ? Math.min(3, specs.length) : specs.length;
+    const sliderIndex = firstCount;
     let y = mainHeight + 10, sliderTop = y + 15;
     for (let i = 0; i < specs.length; i++) {
         if (i === sliderIndex) y += axisSpace;
