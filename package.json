@@ -1,9 +1,9 @@
 {
   "name": "mock-trade-game",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A股简单 · 多市场历史行情盲图模拟交易游戏",
   "scripts": {
-    "deploy": "gh-pages -d dist -m \"deploy: trading game v1.0.0\"",
+    "deploy": "gh-pages -d dist --nojekyll",
     "dev": "node server.js",
     "start": "node server.js",
     "test": "node --test tests/*.test.js",

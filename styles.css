@@ -20,3 +20,10 @@
 @media(max-width:700px){.market-options label{padding:11px 9px;gap:8px}.market-options small{font-size:8px}}
 .indicator-readout.compact{flex-direction:column;align-items:flex-start;gap:2px}
 @media(max-width:560px){.indicator-readout{left:58px;right:12px;flex-direction:column;align-items:flex-start;gap:2px;font-size:9px}.indicator-metrics{gap:9px}.indicator-arrow{font-size:12px}}
+
+.app-version{position:relative;overflow:hidden}
+.version-progress{display:none;position:absolute;inset:auto auto 0 0;width:var(--update-progress);height:2px;background:currentColor}
+.app-version[data-state=downloading] .version-progress{display:block}
+.app-version[data-state=downloading] .icon{animation:spin 1s linear infinite}
+.pwa-update-dialog ul{margin:0 0 20px;padding-inline-start:24px;text-align:start;color:var(--soft)}
+.pwa-update-dialog li+li{margin-top:8px}

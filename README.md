@@ -2,7 +2,7 @@
 
 面向所有玩家的多市场 A 股历史行情盲图模拟交易游戏。隐藏名称与日期，通过逐日决策练习技术分析、仓位管理与交易纪律。
 
-[在线体验](https://larria.github.io/mock-trade-game/) · **v1.0.0**
+[在线体验](https://larria.github.io/mock-trade-game/) · [版本记录](CHANGELOG.md)
 
 ## 规格文档
 
@@ -18,9 +18,11 @@
 - 日/周/月 K，MA 叠加主图；成交量、MACD、KDJ 独立副图，底部显示读数与升降箭头，精度可设 2–6 位；支持参数、联动十字光标、缩放、全屏与买卖标记。
 - 交易理由、进度自动保存、战绩统计、最大回撤、收益基准和 CSV 导出。
 - 日间/夜间主题、涨跌配色、默认仓位、交易确认与键盘快捷键。
-- PWA 安装、离线应用壳；侧栏底部或手机顶部版本入口检查与点击更新，更新先保存当前进度。
+- 可从浏览器安装为 PWA。桌面侧栏底部或手机顶部的版本入口显示下载进度，更新就绪后可查看说明并确认。更新会保存正在进行的对局和交易草稿。
 
 成交采用下一交易日收盘价，并计入设定的佣金和滑点；图表只使用已揭示的训练日。完成后揭晓股票和日期。新抽取行情需要联网；已经保存的对局可离线继续。
+
+Chromium 浏览器支持时会显示「安装应用」。iPhone 和 iPad 在浏览器的分享菜单选择「添加到主屏幕」。首次联网加载完成后，即可离线打开工作台。
 
 ## 本地运行
 
@@ -36,16 +38,13 @@ npm test
 npm run build
 ```
 
-纯 HTML/CSS/JavaScript，ECharts 本地打包，无应用框架。构建从 package.json 读取版本并生成资源指纹、version.js、sw.js 和 dist/。修改运行资源后须重新构建；已有缓存通过版本入口更新。
+项目使用原生 HTML/CSS/JavaScript 和本地 ECharts。构建从 `package.json` 和 `CHANGELOG.md` 读取版本与说明，生成 `version.js`、`version.json`、`sw.js` 和 `dist/`。运行资源变化会生成新的构建指纹，已安装的应用可通过版本入口更新。
 
 ## 发布
 
-```sh
-git push origin main
-npm run deploy
-```
-
-发布命令只将 dist/ 运行资源上传 gh-pages；源码和规格文档在 main。公开版本号维护在 package.json，运行资源变化即使不修改公开版本号也能识别更新。
+1. 用 `npm version <版本号> --no-git-tag-version` 同步 package 与 lock，按 `CHANGELOG.md` 的格式添加本次说明。
+2. 运行 `npm test` 和 `npm run build`，在浏览器验证安装、离线及从上一版切换。提交源码，创建对应的 `v<版本号>` 标签，推送至 GitHub。
+3. 运行 `npm run deploy` 将 `dist/` 发布到 `gh-pages`。在 Pages 核对 `version.json`、入口资源与离线启动后，用同一标签发布 GitHub Release。
 
 ## 标的名单更新
 

@@ -3,7 +3,14 @@
 const CACHE_PREFIX = `trading-pwa:${encodeURIComponent(self.registration.scope)}:`;
 const CACHE_NAME = CACHE_PREFIX + RELEASE.build;
 const scope = new URL(self.registration.scope);
-const assetURLs = new Set(ASSETS.map(file => new URL(file, scope).href));
+const assetURLs = new Set(Object.keys(ASSETS).map(file => new URL(file, scope).href));
+let installedAssets = 0;
+
+function reportProgress(client) {
+    if (client?.url.startsWith(scope.href)) client.postMessage({
+        type: 'INSTALL_PROGRESS', build: RELEASE.build, completed: installedAssets, total: assetURLs.size
+    });
+}
 
 self.addEventListener('install', event => {
     // A release becomes installable only after every required asset is cached.
@@ -11,7 +18,17 @@ self.addEventListener('install', event => {
     event.waitUntil((async () => {
         const cache = await caches.open(CACHE_NAME);
         try {
-            await cache.addAll(ASSETS.map(file => new Request(new URL(file, scope), { cache: 'reload' })));
+            const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+            const results = await Promise.allSettled(Object.entries(ASSETS).map(async ([file, integrity]) => {
+                const request = new Request(new URL(file, scope), { cache: 'reload', integrity });
+                const response = await fetch(request);
+                if (!response.ok) throw new Error(`Unable to cache ${file}`);
+                await cache.put(request, response);
+                installedAssets++;
+                clients.forEach(reportProgress);
+            }));
+            const failure = results.find(result => result.status === 'rejected');
+            if (failure) throw failure.reason;
         } catch (error) {
             await caches.delete(CACHE_NAME);
             throw error;
@@ -27,6 +44,7 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('message', event => {
     if (event.data?.type === 'GET_RELEASE') event.ports[0]?.postMessage(RELEASE);
+    if (event.data?.type === 'GET_INSTALL_PROGRESS') reportProgress(event.source);
     if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
 });
 self.addEventListener('fetch', event => {

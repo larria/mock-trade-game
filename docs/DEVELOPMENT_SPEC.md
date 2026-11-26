@@ -21,6 +21,7 @@
 | manifest.webmanifest | 应用身份、相对 scope/start_url、图标和 standalone 模式 |
 | icons/ | SVG 标识、PNG 安装图标、Apple 与 maskable 图标 |
 | version.js | 构建生成的当前版本与内容指纹，window.APP_RELEASE |
+| version.json | 构建生成的线上版本描述，客户端通过网络检查 |
 | sw.js | 构建生成的 Service Worker，发布常量、应用资源列表和 worker 模板 |
 | scripts/sw-template.js | Service Worker 生命周期与 fetch 策略模板 |
 | scripts/build-pwa.cjs | 校验公开版本、计算内容指纹、生成资源、构造 dist |
@@ -198,9 +199,9 @@ app:before-update 是可取消事件。游戏监听后，在加载或存在打�
 
 ### 7.1 单一版本来源
 
-package.json.version 是公开版本号唯一源，当前 1.0.0。build-pwa.cjs 校验版本格式，使用 SHA-256 对版本、worker 模板、所有应用资源的文件名和内容求哈希，前 16 位作为 build。
+`package.json.version` 是公开版本号来源；`CHANGELOG.md` 中对应版本章节提供更新说明。`build-pwa.cjs` 校验三段式公开版本号与更新说明，对版本、说明、worker 模板及应用资源哈希计算 SHA-256，取前 16 位作为 `build`。
 
-version.js 设置冻结 APP_RELEASE={version,build}；sw.js 嵌入同一个 RELEASE 和 ASSETS。version.js 不参与自身 hash，避免循环。任何运行资源或模板变化都会改变 build；相同公开版本下也能发现内容更新。重复构建无内容差异时输出完全一致。
+`version.js`、`sw.js` 和 `version.json` 使用同一份 `{version, build, notes}`。生成 `version.js` 后计算其资源校验值，并随其他资源校验值一起写入 `sw.js`。公开版本、运行资源、模板或本版说明变化会改变 `build`。重复构建的输出一致。
 
 生成资源包含 HTML、CSS、所有运行 JS、manifest、图标和本地 ECharts。npm run build 复制白名单资源到 dist，加入 .nojekyll 与 ECharts 许可证；不发布测试、规格源、node_modules、Git 元数据或本地服务代码。
 
@@ -208,19 +209,19 @@ version.js 设置冻结 APP_RELEASE={version,build}；sw.js 嵌入同一个 RELE
 
 pwa.js 仅在安全 HTTP(S) 环境注册目录相对 sw.js，scope='./'，updateViaCache='none'。GitHub Pages /mock-trade-game/ 下注册、manifest 和所有关键资源都使用同一目录。file:// 不启用 worker。
 
-缓存名为 trading-pwa:<编码后的完整 scope>:<build>，隔离同源不同目录应用。install 时使用 cache:'reload' 的 Request 将全部必需资源 addAll；任何关键资源失败即删除这个不完整新缓存并拒绝安装。install 不调用 skipWaiting。
+缓存名为 `trading-pwa:<编码后的完整 scope>:<build>`。安装时以 `cache:'reload'` 请求所有必需资源，用各自的 SHA-256 完整性值验证响应。所有写入结束后，任一资源失败即删除本次不完整的缓存。完整安装的 worker 保持等待，直到玩家主动应用。
 
-activate 清除仅属于当前 scope 的其他 build 缓存，再 clients.claim。外部新浪脚本、Google 字体、sw.js 更新请求、非白名单请求和非 GET 请求不拦截。页面导航到应用根或 index.html（含查询参数）统一从此 build 的缓存 index.html 返回；应用关键资源 cache-first，避免旧页面与新脚本混用。
+激活时清除当前作用域的旧应用缓存，再调用 `clients.claim()`。应用根和 `index.html`（含查询参数）从当前缓存返回，应用关键资源也优先使用该缓存。外部行情、字体、`sw.js`、线上 `version.json` 和非白名单请求使用网络。
 
 外部字体不属于关键离线缓存，失败时系统字体兜底。股票数据通过本地对局保存提供离线训练，不新增跨域行情缓存服务。
 
 ### 7.3 更新协议与状态机
 
-worker 消息：GET_RELEASE 通过 MessageChannel 回复 RELEASE；SKIP_WAITING 执行 skipWaiting。版本通信超时 4 秒，安装等待超时 20 秒，切换等待超时 15 秒。
+`GET_RELEASE` 通过 `MessageChannel` 返回已缓存版本及说明。`INSTALL_PROGRESS` 报告实际写入资源数量，`GET_INSTALL_PROGRESS` 查询当前进度。`SKIP_WAITING` 由确认更新的页面发送。版本通信超时 4 秒，线上版本请求 8 秒，下载等待 60 秒，切换等待 15 秒。
 
-客户端状态 idle/checking/latest/ready/updating/offline/error/unsupported。启动自动检查，恢复联网检查，重新可见且距上次超过 15 分钟检查。手动检查调用 registration.update()，等待 installing 完成，再比较 waiting 或 active 的 build 与页面 APP_RELEASE.build。
+客户端状态为 `idle/checking/downloading/latest/ready/updating/offline/error/unsupported`。启动、恢复联网、页面重新可见且距上次超过 15 分钟时检查，也可手动触发。以查询参数和 `cache:'no-store'` 从网络读取 `version.json`，再检查 worker，等待安装结束。用 worker 的 `build` 与页面的 `APP_RELEASE.build` 判断是否可切换。
 
-新 build 完整缓存时 ready，公开版本号不提前改变。玩家点击才触发 app:before-update；事件通过后将 waiting worker 激活，收到 controllerchange 刷新。若另一页已经激活不同 build，则本页准备保存后直接刷新。检查、下载或切换失败不清除当前可用版本。
+新版本就绪后，版本入口显示来自 worker 的说明。确认时触发可取消的 `app:before-update`。通过后等待目标 worker 进入 `activated` 再重载。若另一页已激活目标 worker，本页仍须确认保存后才重载。`sessionStorage` 中一次性的目标 build 用于显示更新完成。检查或下载失败时保留当前可用版本。已完整下载的 worker 可以离线应用。
 
 禁止在发现版本时无条件刷新；禁止在离线情况下显示“已是最新”；禁止清空本地对局/设置/战绩以更新代码。不同窗口的 controllerchange 不直接刷新非发起窗口。
 
@@ -240,13 +241,13 @@ npm run deploy       # 构建后发布 dist 至 gh-pages
 
 开发静态服务对所有资源设置 no-cache，webmanifest 使用 application/manifest+json。代码修改后运行 build:pwa 才会更新 worker 发布指纹；已安装的缓存版本通过版本入口切换，也可以开发时在浏览器工具中解除 Service Worker。
 
-源码推送到 https://github.com/larria/mock-trade-game 的 main；运行资源发布至 gh-pages 根目录。GitHub Pages 地址是 https://larria.github.io/mock-trade-game/ 。推送前 fetch 并确认不覆盖他人提交，普通 push，不强推。
+用 `npm version <版本号> --no-git-tag-version` 更新 package 与 lock，再添加 `CHANGELOG.md` 版本章节并构建。提交源码到 `main` 并推送对应的 `v<版本号>` 标签。运行资源发布到 `gh-pages`，公开入口为 https://larria.github.io/mock-trade-game/ 。验证线上资源后，用源码标签和本版更新说明创建 GitHub Release。
 
 发布前必做：语法检查、npm test、git diff --check、npm run build、检查生成版本一致、检查运行资源白名单、桌面/手机版本入口、真实 browser 的 worker 注册与更新。
 
 自动测试覆盖四池完整性与来源、范围去重、底栏数值/箭头/精度/空值、7/30/200/500 日结束、双向手续费、滑点、单位取整、非法指令、周/月聚合、SMA/EMA/MACD/KDJ、污染未来数据后的模型不变、500 日存档恢复、兼容存档、回撤、可复现 build、内容指纹变化、子路径缓存、安装失败保留旧缓存、跨作用域清理、显式激活协议与 PNG 尺寸。
 
-浏览器验收覆盖公共文案、四池多选和 500 日上限、MACD/KDJ 底栏位置和光标联动、真实行情开局、买卖/观望/结算、刷新恢复、无横向溢出、安装提示、版本检查、等待新 worker、点击更新后的页面 build 切换，以及离线使用既有对局。线上验证以实际公开 HTML、version.js、sw.js、manifest 和资源返回为准，Git push 成功不能替代 Pages 可访问性确认。
+浏览器验收覆盖公共文案、四池多选和 500 日上限、MACD/KDJ 底栏位置和光标联动、真实行情开局、买卖/观望/结算、刷新恢复、无横向溢出、安装资格、版本检查、下载进度与说明、确认后切换 build，以及离线使用既有对局。线上核对 HTML、`version.json`、`version.js`、`sw.js`、manifest 和离线启动。
 
 ### 8.1 标的名单维护
 
